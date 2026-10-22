@@ -25,24 +25,45 @@ static class Checks {
             Assert(eye.Tick(now.AddSeconds(10))==Cue.Halfway&&eye.Tick(now.AddSeconds(11))==null,"one halfway cue");
             Assert(eye.Tick(now.AddSeconds(20))==Cue.Complete&&eye.Tick(now.AddSeconds(21))==null,"one completion cue");
             foreach(var kind in Enum.GetValues<Kind>())Assert(Visuals.Bitmap(kind+".png").PixelWidth>0,"mascot resource");
-            foreach(var name in new[]{"BlinkStart","BlinkHalfway","BlinkComplete","BlinkPreview"}) {
-                using var stream=Visuals.Resource(name+".wav");using var player=new System.Media.SoundPlayer(stream);player.Load();Assert(player.IsLoadCompleted,"audio decoding");
+            foreach(var set in Enum.GetValues<SoundSet>())
+            foreach(var name in Enum.GetValues<Cue>().Select(cue=>Sounds.File(set,cue)).Append(Sounds.Preview(set))) {
+                using var stream=Visuals.Resource(name+".wav");using var player=new System.Media.SoundPlayer(stream);player.Load();Assert(player.IsLoadCompleted,"audio decoding "+name);
             }
+            Assert(Sounds.File(SoundSet.Bells,Cue.Halfway)=="BlinkHalfway"&&Sounds.Nudge(SoundSet.Chimes)=="ChimesStart","sound filenames");
+            var fresh=new Settings();Assert(fresh.SoundSets[Kind.Blink]==SoundSet.Bells&&fresh.SoundSets[Kind.Rally]==SoundSet.Marimba&&fresh.SoundSets[Kind.Mochi]==SoundSet.Kalimba,"sound defaults");
+            fresh.SoundSets[Kind.Mochi]=SoundSet.Woodblock;store.Save(fresh);Assert(store.Load().SoundSets[Kind.Mochi]==SoundSet.Woodblock&&store.Load().SoundSets[Kind.Blink]==SoundSet.Bells,"sound choice persists");
+            File.WriteAllText(Path.Combine(temp,"settings.json"),"{\"SoundSets\":{\"Rally\":42}}");Assert(store.Load().SoundSets[Kind.Rally]==SoundSet.Marimba&&store.Load().SoundSets[Kind.Blink]==SoundSet.Bells,"invalid sound recovers");
+            var q=Picker.QuarterHours;
+            Assert(q[Picker.Step(q,95,1,true,_=>false)]==0&&q[Picker.Step(q,0,-2,true,_=>false)]==1410,"picker wraps midnight");
+            Assert(q[Picker.Step(q,95,1,true,m=>m==0)]==15,"picker skips matching time");
+            var minutes=Settings.Choices(Kind.Blink).ToList();Assert(Picker.Step(minutes,minutes.Count-1,1,false,_=>false)==minutes.Count-1&&minutes[Picker.Step(minutes,minutes.Count-1,-3,false,_=>false)]==45,"picker clamps intervals");
+            Assert(Picker.Nearest(q,560)==37,"picker nearest value");
+            var mail=Feedback.MailtoUri();Assert(mail.StartsWith("mailto:0xcrvpto@webuild3.xyz?subject=Pippy%20feedback&body=")&&!mail.Contains(' '),"feedback email link");
+            Assert(Feedback.Telegram=="https://t.me/i0xcrvpto","feedback telegram link");
             using(var icon=Visuals.Resource("AppIcon.ico"))using(var image=new System.Drawing.Icon(icon))Assert(image.Width>0,"tray icon");
-            File.WriteAllText(Path.Combine(Path.GetTempPath(),"pippy-test-result.txt"),"PASS: schedule, persistence, snooze, countdown, images, audio, icon");
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"pippy-test-result.txt"),"PASS: schedule, persistence, snooze, countdown, images, audio for every sound set, sound choices, picker, feedback links, icon");
             return 0;
         } catch(Exception e) { File.WriteAllText(Path.Combine(Path.GetTempPath(),"pippy-test-result.txt"),e.ToString());return 1; }
         finally { if(Directory.Exists(temp))Directory.Delete(temp,true); }
     }
     public static int Smoke(Application app,string output) {
         Directory.CreateDirectory(output);var settings=new Settings {ReduceMotion=true};
-        var cues=new List<Cue>();int snoozes=0;var home=new HomeWindow(settings,()=>{},_=>{},_=>{},()=>{});
+        var cues=new List<Cue>();int snoozes=0,saves=0;var previews=new List<Kind>();
+        var home=new HomeWindow(settings,()=>saves++,_=>saves++,_=>{},previews.Add);
         var popup=new ReminderWindow(Kind.Blink,settings,cues.Add,()=>snoozes++);
         var wait=new DispatcherTimer {Interval=TimeSpan.FromSeconds(21.5)};
         app.DispatcherUnhandledException+=(_,e)=>{File.WriteAllText(Path.Combine(output,"error.txt"),e.Exception.ToString());e.Handled=true;app.Shutdown(1);};
         home.Show();popup.Show();
         app.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,new Action(()=>{
             Visuals.Render(home,Path.Combine(output,"preferences.png"));Visuals.Render(popup,Path.Combine(output,"blink.png"));
+            Assert(home.Intervals[Kind.Blink].StepBy(-1)&&settings.Minutes[Kind.Blink]==15,"UI interval chip saves");
+            home.Start.Select(17*60);home.End.Select(17*60+15);
+            Assert(home.End.StepBy(-1)&&settings.WorkoutStart==17*60&&settings.WorkoutEnd==16*60+45,"UI time chip skips start and saves");
+            home.Toggles[Kind.Mochi].IsChecked=false;home.Toggles[Kind.Mochi].RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Assert(!settings.Enabled[Kind.Mochi],"UI switch saves");Visuals.Render(home,Path.Combine(output,"preferences-edited.png"));
+            home.SoundPickers[Kind.Rally].SelectedIndex=(int)SoundSet.Chimes;
+            Assert(settings.SoundSets[Kind.Rally]==SoundSet.Chimes&&previews.SequenceEqual(new[]{Kind.Rally}),"UI sound picker saves and previews");
+            Assert(saves>=4,"UI changes save");
             popup.Primary.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert(!popup.Primary.IsEnabled&&cues.SequenceEqual(new[]{Cue.Start}),"UI starts break");wait.Start();
         }));
@@ -54,7 +75,7 @@ static class Checks {
                     var other=new ReminderWindow(kind,settings,_=>{},()=>snoozes++);other.Show();Visuals.Render(other,Path.Combine(output,kind+".png"));
                     other.Later.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 }
-                Assert(snoozes==2,"UI snooze buttons");File.WriteAllText(Path.Combine(output,"smoke-result.txt"),"PASS: windows render; real 20-second timer; all three cues; snooze clicks");app.Shutdown(0);
+                Assert(snoozes==2,"UI snooze buttons");File.WriteAllText(Path.Combine(output,"smoke-result.txt"),"PASS: windows render; real 20-second timer; all three cues; snooze clicks; interval, time and sound controls save");app.Shutdown(0);
             }catch(Exception e){File.WriteAllText(Path.Combine(output,"error.txt"),e.ToString());app.Shutdown(1);}
         };
         return app.Run();

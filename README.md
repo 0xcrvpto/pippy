@@ -11,7 +11,7 @@ Pippy is publicly available from [Releases](https://github.com/0xcrvpto/pippy/re
 | Platform | Download | Requirements |
 | --- | --- | --- |
 | macOS | [Mac disk image](https://github.com/0xcrvpto/pippy/releases/latest/download/Pippy-0.6-arm64.dmg) | Apple silicon, macOS 13+ |
-| Windows | [Windows installer](https://github.com/0xcrvpto/pippy/releases/download/v0.5.0/Pippy-0.5-Windows-x64-Setup.exe) | Windows 10 version 2004+ or Windows 11, x64 |
+| Windows | [Windows installer](https://github.com/0xcrvpto/pippy/releases/latest/download/Pippy-0.6-Windows-x64-Setup.exe) | Windows 10 version 2004+ or Windows 11, x64 |
 
 Quit any running copy before installing. On Mac, open the `.dmg` and drag Pippy onto the Applications folder in the window that appears, then eject the disk image. On Windows, open the setup `.exe`; it installs for your user and adds a Start menu shortcut. The Windows runtime is included.
 
