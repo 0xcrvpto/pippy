@@ -52,7 +52,7 @@ final class CompanionReminderView: NSView {
     private let kind: ReminderKind
     private let dismiss: () -> Void
     private let snooze: () -> Void
-    private let playCue: (Bool) -> Void
+    private let playCue: (ReminderCue) -> Void
     private var countdown: Timer?
     private var startedAt: Date?
     private var complete = false
@@ -60,7 +60,7 @@ final class CompanionReminderView: NSView {
     private var status: NSTextField!
     private var primary: NSButton!
     private var later: NSButton!
-    init(kind: ReminderKind, dismiss: @escaping () -> Void, snooze: @escaping () -> Void, soundEnabled: Bool = true, playCue: @escaping (Bool) -> Void) {
+    init(kind: ReminderKind, dismiss: @escaping () -> Void, snooze: @escaping () -> Void, soundEnabled: Bool = true, playCue: @escaping (ReminderCue) -> Void) {
         self.kind = kind; self.dismiss = dismiss; self.snooze = snooze; self.playCue = playCue
         let height: CGFloat = kind == .eyes ? 286 : 258
         super.init(frame: NSRect(x: 0, y: 0, width: 350, height: height))
@@ -113,7 +113,7 @@ final class CompanionReminderView: NSView {
         guard startedAt == nil else { return }
         startedAt = Date(); primary.title = "Resting…"; primary.isEnabled = false
         later.isHidden = true; status.stringValue = "20 seconds left · look away"
-        playCue(false)
+        playCue(.start)
         countdown = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in self?.advanceBreak() }
     }
     private func advanceBreak() {
@@ -122,12 +122,12 @@ final class CompanionReminderView: NSView {
         status.stringValue = "\(seconds) seconds left · look away"
         if seconds > 0 && seconds <= 10 && !halfwayCuePlayed {
             halfwayCuePlayed = true
-            playCue(false)
+            playCue(.halfway)
         }
         if seconds == 0 {
             countdown?.invalidate(); countdown = nil; complete = true
             status.stringValue = "Eyes rested. Welcome back!"
-            primary.title = "Done"; primary.isEnabled = true; playCue(true)
+            primary.title = "Done"; primary.isEnabled = true; playCue(.complete)
         }
     }
     @objc private func closeReminder() { countdown?.invalidate(); countdown = nil; dismiss() }

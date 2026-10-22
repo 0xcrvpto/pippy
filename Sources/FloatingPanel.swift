@@ -10,7 +10,7 @@ final class FloatingPanelManager {
     private var panel: MascotPanel?
     private var pending: [() -> Void] = []
 
-    func show(_ kind: ReminderKind, snooze: @escaping () -> Void, soundEnabled: @escaping () -> Bool, playCue: @escaping (Bool) -> Void) {
+    func show(_ kind: ReminderKind, snooze: @escaping () -> Void, soundEnabled: @escaping () -> Bool, playCue: @escaping (ReminderCue) -> Void) {
         if panel?.isVisible == true {
             pending.append { [weak self] in self?.show(kind, snooze: snooze, soundEnabled: soundEnabled, playCue: playCue) }
             return

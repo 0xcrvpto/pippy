@@ -8,6 +8,8 @@ final class DashboardView: NSView {
     private var mascotPreview: MascotDrawingView!
     private var previewName: NSTextField!
     private var previewType: NSTextField!
+    private var workoutHoursLabel: NSTextField?
+    private var workoutIntervalLabel: NSTextField?
     private var selectorButtons: [ReminderKind: NSButton] = [:]
 
     init(scheduler: ReminderScheduler, frame: NSRect) {
@@ -20,6 +22,7 @@ final class DashboardView: NSView {
         buildLeftColumn()
         buildRightColumn()
         buildFooter()
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshSchedule), name: .pippySettingsChanged, object: scheduler)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -187,12 +190,14 @@ final class DashboardView: NSView {
         schedule.addSubview(clock); schedule.addSubview(scheduleTitle)
         let workoutTitle = label("Workout window", size: 12, weight: .semibold, color: Palette.ink)
         let workoutInterval = label("Every \(scheduler.value(for: .workout).minutes) min", size: 10, weight: .regular, color: Palette.muted)
-        let hours = label("2–6 PM", size: 10, weight: .bold, color: Palette.ink)
+        workoutIntervalLabel = workoutInterval
+        let hours = label(scheduler.workoutWindow.summary, size: 10, weight: .bold, color: Palette.ink)
+        workoutHoursLabel = hours
         hours.alignment = .center
         hours.wantsLayer = true
         hours.layer?.backgroundColor = Palette.coral.withAlphaComponent(0.18).cgColor
         hours.layer?.cornerRadius = 10
-        let divider = NSView(); divider.wantsLayer = true; divider.layer?.backgroundColor = Palette.line.cgColor
+        let divider = NSView(); divider.translatesAutoresizingMaskIntoConstraints = false; divider.wantsLayer = true; divider.layer?.backgroundColor = Palette.line.cgColor
         let info = symbol("info.circle", size: 10, color: Palette.muted)
         let note = label("Reminders run while Pippy stays open.", size: 9, weight: .medium, color: Palette.muted)
         for view in [workoutTitle, workoutInterval, hours, divider, info, note] { schedule.addSubview(view) }
@@ -201,7 +206,7 @@ final class DashboardView: NSView {
             scheduleTitle.leadingAnchor.constraint(equalTo: clock.trailingAnchor, constant: 7), scheduleTitle.centerYAnchor.constraint(equalTo: clock.centerYAnchor),
             workoutTitle.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 16), workoutTitle.topAnchor.constraint(equalTo: schedule.topAnchor, constant: 48),
             workoutInterval.leadingAnchor.constraint(equalTo: workoutTitle.leadingAnchor), workoutInterval.topAnchor.constraint(equalTo: workoutTitle.bottomAnchor, constant: 3),
-            hours.trailingAnchor.constraint(equalTo: schedule.trailingAnchor, constant: -15), hours.centerYAnchor.constraint(equalTo: workoutTitle.centerYAnchor), hours.widthAnchor.constraint(equalToConstant: 59), hours.heightAnchor.constraint(equalToConstant: 23),
+            hours.trailingAnchor.constraint(equalTo: schedule.trailingAnchor, constant: -15), hours.centerYAnchor.constraint(equalTo: workoutTitle.centerYAnchor), hours.widthAnchor.constraint(equalToConstant: 162), hours.heightAnchor.constraint(equalToConstant: 23),
             divider.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 15), divider.trailingAnchor.constraint(equalTo: schedule.trailingAnchor, constant: -15), divider.topAnchor.constraint(equalTo: schedule.topAnchor, constant: 91), divider.heightAnchor.constraint(equalToConstant: 1),
             info.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 16), info.topAnchor.constraint(equalTo: divider.bottomAnchor, constant: 13),
             note.leadingAnchor.constraint(equalTo: info.trailingAnchor, constant: 6), note.centerYAnchor.constraint(equalTo: info.centerYAnchor)
@@ -210,6 +215,7 @@ final class DashboardView: NSView {
 
     private func buildFooter() {
         let footer = NSView()
+        footer.translatesAutoresizingMaskIntoConstraints = false
         footer.wantsLayer = true
         footer.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.55).cgColor
         addSubview(footer)
@@ -237,6 +243,11 @@ final class DashboardView: NSView {
         }
     }
 
+    @objc private func refreshSchedule() {
+        workoutHoursLabel?.stringValue = scheduler.workoutWindow.summary
+        workoutIntervalLabel?.stringValue = "Every \(scheduler.value(for: .workout).minutes) min"
+    }
+
     @objc private func showPreview() { scheduler.preview(selectedKind) }
 }
 
@@ -248,7 +259,7 @@ final class PreferencesView: NSView {
     init(scheduler: ReminderScheduler, frame: NSRect) {
         self.scheduler = scheduler
         super.init(frame: frame)
-        translatesAutoresizingMaskIntoConstraints = false
+        autoresizingMask = [.width, .height]
         wantsLayer = true
         layer?.backgroundColor = Palette.canvas.cgColor
         buildContents()
@@ -309,6 +320,13 @@ final class PreferencesView: NSView {
             rows.widthAnchor.constraint(equalToConstant: 500)
         ])
 
+        let workoutHours = WorkoutHoursView(scheduler: scheduler)
+        addSubview(workoutHours)
+        NSLayoutConstraint.activate([
+            workoutHours.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 30),
+            workoutHours.topAnchor.constraint(equalTo: rows.bottomAnchor, constant: 16),
+            workoutHours.widthAnchor.constraint(equalToConstant: 500), workoutHours.heightAnchor.constraint(equalToConstant: 108)
+        ])
         let soundCard = NSView()
         soundCardView = soundCard
         styleCard(soundCard, radius: 15)
@@ -323,19 +341,28 @@ final class PreferencesView: NSView {
         soundToggle.controlSize = .small
         soundCard.addSubview(soundTitle); soundCard.addSubview(soundDetail); soundCard.addSubview(soundToggle)
         NSLayoutConstraint.activate([
-            soundCard.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 30), soundCard.topAnchor.constraint(equalTo: rows.bottomAnchor, constant: 16),
-            soundCard.widthAnchor.constraint(equalToConstant: 500), soundCard.heightAnchor.constraint(equalToConstant: 64),
+            soundCard.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 30), soundCard.topAnchor.constraint(equalTo: workoutHours.bottomAnchor, constant: 12),
+            soundCard.widthAnchor.constraint(equalToConstant: 500), soundCard.heightAnchor.constraint(equalToConstant: 82),
             soundTitle.leadingAnchor.constraint(equalTo: soundCard.leadingAnchor, constant: 15), soundTitle.topAnchor.constraint(equalTo: soundCard.topAnchor, constant: 13),
             soundDetail.leadingAnchor.constraint(equalTo: soundTitle.leadingAnchor), soundDetail.topAnchor.constraint(equalTo: soundTitle.bottomAnchor, constant: 3)
         ])
 
-        let note = label("Workout nudges are limited to 2–6 p.m.  ·  Changes save automatically", size: 9, weight: .medium, color: Palette.muted)
+        let preview = button("♫  Preview Blink's sounds", size: 10, weight: .semibold, color: Palette.ink)
+        preview.target = self; preview.action = #selector(previewBlinkSounds)
+        soundCard.addSubview(preview)
+        NSLayoutConstraint.activate([
+            preview.leadingAnchor.constraint(equalTo: soundTitle.leadingAnchor),
+            preview.topAnchor.constraint(equalTo: soundDetail.bottomAnchor, constant: 7)
+        ])
+        let note = label("Changes save automatically · sound previews play even when muted", size: 9, weight: .medium, color: Palette.muted)
         addSubview(note)
         NSLayoutConstraint.activate([
             note.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 31), note.topAnchor.constraint(equalTo: soundCard.bottomAnchor, constant: 13)
         ])
         needsLayout = true
     }
+
+    @objc private func previewBlinkSounds() { scheduler.previewSounds() }
 
     @objc private func toggleSound(_ sender: NSButton) {
         scheduler.setSoundEnabled(sender.state == .on)

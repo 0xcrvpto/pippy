@@ -1,6 +1,7 @@
 """Export the master artwork at every macOS icon size and package with iconutil."""
 from pathlib import Path
 import subprocess
+import sys
 root = Path(__file__).resolve().parent.parent
 iconset = root / '.build/Pippy.iconset'
 iconset.mkdir(parents=True, exist_ok=True)
@@ -11,4 +12,4 @@ for size in (16, 32, 128, 256, 512):
                         str(root/'Assets/AppIcon.png'), '--out', str(iconset/name)],
                        check=True, stdout=subprocess.DEVNULL)
 subprocess.run(['iconutil', '-c', 'icns', str(iconset), '-o',
-                str(root/'dist/Pippy.app/Contents/Resources/Pippy.icns')], check=True)
+                str(Path(sys.argv[1]) if len(sys.argv) > 1 else root/'dist/Pippy.app/Contents/Resources/Pippy.icns')], check=True)

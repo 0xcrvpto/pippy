@@ -89,14 +89,16 @@ final class ReminderScheduler {
     private let panelManager = FloatingPanelManager()
     private var timer: Timer?
     private var snoozedUntil: [ReminderKind: Date] = [:]
+    private let defaults: UserDefaults
+    private let soundPlayer = CuePlayer()
     private let soundKey = "sound.enabled"
 
     var soundEnabled: Bool {
-        UserDefaults.standard.object(forKey: soundKey) as? Bool ?? true
+        defaults.object(forKey: soundKey) as? Bool ?? true
     }
 
-    init() {
-        let defaults = UserDefaults.standard
+    init(defaults: UserDefaults = .standard, startTimer: Bool = true) {
+        self.defaults = defaults
         for kind in ReminderKind.allCases {
             let enabled = defaults.object(forKey: kind.enabledKey) as? Bool ?? true
             let minutes = defaults.object(forKey: kind.minutesKey) as? Int ?? kind.initialMinutes
@@ -105,7 +107,9 @@ final class ReminderScheduler {
                 defaults.set(Date(), forKey: kind.lastFireKey)
             }
         }
-        timer = Timer.scheduledTimer(timeInterval: 10, target: self, selector: #selector(checkSchedule), userInfo: nil, repeats: true)
+        if startTimer {
+            timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in self?.checkSchedule() }
+        }
     }
 
     func value(for kind: ReminderKind) -> ReminderSettings {
@@ -116,41 +120,56 @@ final class ReminderScheduler {
         var next = value(for: kind)
         next.enabled = enabled
         settings[kind] = next
-        UserDefaults.standard.set(enabled, forKey: kind.enabledKey)
-        UserDefaults.standard.set(Date(), forKey: kind.lastFireKey)
+        defaults.set(enabled, forKey: kind.enabledKey)
+        defaults.set(Date(), forKey: kind.lastFireKey)
     }
 
     func setMinutes(_ minutes: Int, for kind: ReminderKind) {
         var next = value(for: kind)
         next.minutes = min(max(minutes, kind.range.lowerBound), kind.range.upperBound)
         settings[kind] = next
-        UserDefaults.standard.set(next.minutes, forKey: kind.minutesKey)
-        UserDefaults.standard.set(Date(), forKey: kind.lastFireKey)
+        defaults.set(next.minutes, forKey: kind.minutesKey)
+        NotificationCenter.default.post(name: .pippySettingsChanged, object: self)
+        defaults.set(Date(), forKey: kind.lastFireKey)
     }
 
     func setSoundEnabled(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: soundKey)
+        defaults.set(enabled, forKey: soundKey)
     }
 
     func preview(_ kind: ReminderKind) { deliver(kind) }
 
-    func playCue(completed: Bool) {
-        guard soundEnabled else { return }
-        let soundName = completed ? "Glass" : "Tink"
-        if let sound = NSSound(named: NSSound.Name(soundName)) {
-            sound.volume = 0.28
-            sound.play()
-        } else {
-            NSSound.beep()
-        }
+    var workoutWindow: WorkoutWindow {
+        WorkoutWindow(start: defaults.object(forKey: "workout.startMinute") as? Int ?? 840,
+                      end: defaults.object(forKey: "workout.endMinute") as? Int ?? 1080) ?? .standard
     }
 
+    @discardableResult
+    func setWorkoutWindow(start: Int, end: Int) -> Bool {
+        guard let window = WorkoutWindow(start: start, end: end) else { return false }
+        defaults.set(window.start, forKey: "workout.startMinute")
+        defaults.set(window.end, forKey: "workout.endMinute")
+        NotificationCenter.default.post(name: .pippySettingsChanged, object: self)
+        return true
+    }
+
+    func playCue(_ cue: ReminderCue) {
+        guard soundEnabled else { return }
+        soundPlayer.play(cue)
+    }
+
+    func previewSounds() {
+        soundPlayer.preview()
+    }
+
+    deinit { timer?.invalidate() }
+
     private func deliver(_ kind: ReminderKind) {
-        if kind != .eyes && soundEnabled { playCue(completed: false) }
+        if kind != .eyes && soundEnabled { playCue(.nudge) }
         panelManager.show(kind, snooze: { [weak self] in
             self?.snoozedUntil[kind] = Date().addingTimeInterval(600)
-        }, soundEnabled: { [weak self] in self?.soundEnabled ?? false }, playCue: { [weak self] completed in
-            self?.playCue(completed: completed)
+        }, soundEnabled: { [weak self] in self?.soundEnabled ?? false }, playCue: { [weak self] cue in
+            self?.playCue(cue)
         })
     }
 
@@ -171,9 +190,9 @@ final class ReminderScheduler {
                 deliver(kind)
                 return
             }
-            let last = UserDefaults.standard.object(forKey: kind.lastFireKey) as? Date ?? now
+            let last = defaults.object(forKey: kind.lastFireKey) as? Date ?? now
             guard now.timeIntervalSince(last) >= Double(config.minutes * 60) else { continue }
-            UserDefaults.standard.set(now, forKey: kind.lastFireKey)
+            defaults.set(now, forKey: kind.lastFireKey)
             deliver(kind)
             return
         }
@@ -186,17 +205,14 @@ final class ReminderScheduler {
 
     private func workoutSlotIsDue(now: Date, interval: Int) -> Bool {
         let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: now)
-        guard let hour = parts.hour, let minute = parts.minute, let second = parts.second else { return false }
+        guard let hour = parts.hour, let minute = parts.minute else { return false }
         let minuteOfDay = hour * 60 + minute
-        let start = 14 * 60
-        let end = 18 * 60
-        guard minuteOfDay >= start, minuteOfDay < end,
-              (minuteOfDay - start) % interval == 0, second < 20 else { return false }
+        guard workoutWindow.isSlot(minute: minuteOfDay, interval: interval) else { return false }
         let day = "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
         let slot = "\(day)-\(minuteOfDay)"
         let key = "workout.lastSlot"
-        guard UserDefaults.standard.string(forKey: key) != slot else { return false }
-        UserDefaults.standard.set(slot, forKey: key)
+        guard defaults.string(forKey: key) != slot else { return false }
+        defaults.set(slot, forKey: key)
         return true
     }
 }
