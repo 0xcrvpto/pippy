@@ -4,3 +4,5 @@ dist/
 Previews/
 *.pkg
 *.zip
+Windows/bin/
+Windows/obj/
