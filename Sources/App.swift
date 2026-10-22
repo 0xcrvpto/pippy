@@ -98,7 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             preferencesWindow.makeKeyAndOrderFront(nil)
         } else if let scheduler {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 560, height: 716),
+                contentRect: NSRect(x: 0, y: 0, width: 560, height: 780),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false
@@ -108,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.titlebarAppearsTransparent = true
             window.isMovableByWindowBackground = true
             window.backgroundColor = Palette.canvas
-            window.contentView = PreferencesView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 560, height: 716))
+            window.contentView = PreferencesView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 560, height: 780))
             window.center()
             preferencesWindow = window
             window.makeKeyAndOrderFront(nil)

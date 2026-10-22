@@ -98,10 +98,23 @@ public sealed class Settings {
     public Dictionary<Kind, SoundSet> SoundSets { get; set; } = Enum.GetValues<Kind>().ToDictionary(k => k, Sounds.Default);
     public Dictionary<Kind, DateTimeOffset> Last { get; set; } = new();
     public string LastWorkoutSlot { get; set; } = "";
+    // Blink and Mochi each have their own active hours; Rally keeps WorkoutStart/WorkoutEnd.
+    public Dictionary<Kind, int> ActiveStart { get; set; } = new() { [Kind.Blink] = 660, [Kind.Mochi] = 660 };
+    public Dictionary<Kind, int> ActiveEnd { get; set; } = new() { [Kind.Blink] = 1380, [Kind.Mochi] = 1380 };
     public WindowHours Hours => new(WorkoutStart, WorkoutEnd);
+    public WindowHours HoursFor(Kind kind) => kind == Kind.Rally ? Hours : new(ActiveStart[kind], ActiveEnd[kind]);
+    public bool SetHours(Kind kind, int start, int end) {
+        if (!new WindowHours(start, end).Valid) return false;
+        if (kind == Kind.Rally) { WorkoutStart = start; WorkoutEnd = end; } else { ActiveStart[kind] = start; ActiveEnd[kind] = end; }
+        return true;
+    }
     public void Normalize() {
         var fallback = new Settings();
-        Enabled ??= new(); Minutes ??= new(); Last ??= new(); SoundSets ??= new();
+        Enabled ??= new(); Minutes ??= new(); Last ??= new(); SoundSets ??= new(); ActiveStart ??= new(); ActiveEnd ??= new();
+        foreach (var kind in new[] { Kind.Blink, Kind.Mochi })
+            if (!ActiveStart.TryGetValue(kind, out int start) || !ActiveEnd.TryGetValue(kind, out int end) || !new WindowHours(start, end).Valid) {
+                ActiveStart[kind] = 660; ActiveEnd[kind] = 1380;
+            }
         foreach (var kind in Enum.GetValues<Kind>()) {
             Enabled.TryAdd(kind, true);
             if (!SoundSets.TryGetValue(kind, out var set) || !Enum.IsDefined(set)) SoundSets[kind] = Sounds.Default(kind);
@@ -151,7 +164,7 @@ public sealed class Schedule {
                 if (settings.Hours.Slot(now.Hour*60+now.Minute, settings.Minutes[kind]) && slot != settings.LastWorkoutSlot) {
                     settings.LastWorkoutSlot = slot; return kind;
                 }
-            } else if (now.Hour >= 11 && now.Hour < 23 && (now - settings.Last[kind]).TotalMinutes >= settings.Minutes[kind]) {
+            } else if (settings.HoursFor(kind).Contains(now.Hour*60+now.Minute) && (now - settings.Last[kind]).TotalMinutes >= settings.Minutes[kind]) {
                 settings.Last[kind] = now; return kind;
             }
         }

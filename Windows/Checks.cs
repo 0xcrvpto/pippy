@@ -40,6 +40,14 @@ static class Checks {
             Assert(Picker.Nearest(q,560)==37,"picker nearest value");
             var mail=Feedback.MailtoUri();Assert(mail.StartsWith("mailto:0xcrvpto@webuild3.xyz?subject=Pippy%20feedback&body=")&&!mail.Contains(' '),"feedback email link");
             Assert(Feedback.Telegram=="https://t.me/i0xcrvpto","feedback telegram link");
+            var hoursSettings=new Settings();
+            Assert(hoursSettings.HoursFor(Kind.Blink)==new WindowHours(660,1380)&&hoursSettings.HoursFor(Kind.Mochi)==new WindowHours(660,1380),"break hours default");
+            Assert(hoursSettings.SetHours(Kind.Blink,540,1020)&&!hoursSettings.SetHours(Kind.Mochi,60,60)&&hoursSettings.HoursFor(Kind.Mochi)==new WindowHours(660,1380),"break hours independent and validated");
+            store.Save(hoursSettings);Assert(store.Load().HoursFor(Kind.Blink)==new WindowHours(540,1020),"break hours persist");
+            File.WriteAllText(Path.Combine(temp,"settings.json"),"{\"ActiveStart\":{\"Blink\":5},\"ActiveEnd\":{\"Blink\":5}}");Assert(store.Load().HoursFor(Kind.Blink)==new WindowHours(660,1380),"invalid break hours recover");
+            var breakSchedule=new Schedule(hoursSettings,new DateTimeOffset(2026,10,22,7,0,0,TimeSpan.Zero));hoursSettings.Enabled[Kind.Rally]=false;
+            Assert(breakSchedule.Due(new DateTimeOffset(2026,10,22,8,0,0,TimeSpan.Zero))==null,"no eye break before its hours");
+            Assert(breakSchedule.Due(new DateTimeOffset(2026,10,22,9,30,0,TimeSpan.Zero))==Kind.Blink,"eye break inside its hours");
             Assert(Updates.IsNewer("v0.6.1","0.6")&&Updates.IsNewer("0.10","0.9.9")&&!Updates.IsNewer("v0.6.1","0.6.1")&&!Updates.IsNewer("0.6","0.6.1"),"update version comparison");
             var latest=Updates.Parse("{\"tag_name\":\"v0.7.0\",\"html_url\":\"https://github.com/0xcrvpto/pippy/releases/tag/v0.7.0\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"name\":\"Pippy-0.7-arm64.dmg\",\"browser_download_url\":\"https://example.com/mac.dmg\"},{\"name\":\"Pippy-0.7-Windows-x64-Setup.exe\",\"browser_download_url\":\"https://example.com/win.exe\"}]}");
             Assert(latest!=null&&latest.Version=="0.7.0"&&latest.Download=="https://example.com/win.exe","update release parsing");
@@ -47,7 +55,7 @@ static class Checks {
             Assert(pageOnly!=null&&pageOnly.Download==pageOnly.Page,"update page fallback");
             Assert(Updates.Parse("{\"tag_name\":\"v0.9\",\"html_url\":\"x\",\"prerelease\":true}")==null&&Updates.Parse("nope")==null,"update ignores prereleases and bad JSON");
             using(var icon=Visuals.Resource("AppIcon.ico"))using(var image=new System.Drawing.Icon(icon))Assert(image.Width>0,"tray icon");
-            File.WriteAllText(Path.Combine(Path.GetTempPath(),"pippy-test-result.txt"),"PASS: schedule, persistence, snooze, countdown, images, audio for every sound set, sound choices, picker, feedback links, update parsing, icon");
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"pippy-test-result.txt"),"PASS: schedule, per-buddy active hours, persistence, snooze, countdown, images, audio for every sound set, sound choices, picker, feedback links, update parsing, icon");
             return 0;
         } catch(Exception e) { File.WriteAllText(Path.Combine(Path.GetTempPath(),"pippy-test-result.txt"),e.ToString());return 1; }
         finally { if(Directory.Exists(temp))Directory.Delete(temp,true); }
@@ -65,6 +73,7 @@ static class Checks {
             Assert(home.Intervals[Kind.Blink].StepBy(-1)&&settings.Minutes[Kind.Blink]==15,"UI interval chip saves");
             home.Start.Select(17*60);home.End.Select(17*60+15);
             Assert(home.End.StepBy(-1)&&settings.WorkoutStart==17*60&&settings.WorkoutEnd==16*60+45,"UI time chip skips start and saves");
+            Assert(home.HourChips[Kind.Mochi].Start.StepBy(-4)&&settings.HoursFor(Kind.Mochi)==new WindowHours(600,1380)&&settings.HoursFor(Kind.Blink)==new WindowHours(660,1380),"UI break hours save independently");
             home.Toggles[Kind.Mochi].IsChecked=false;home.Toggles[Kind.Mochi].RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             Assert(!settings.Enabled[Kind.Mochi],"UI switch saves");Visuals.Render(home,Path.Combine(output,"preferences-edited.png"));
             home.SoundPickers[Kind.Rally].SelectedIndex=(int)SoundSet.Chimes;

@@ -8,7 +8,7 @@ work_path=$(mktemp -d /private/tmp/pippy-package.XXXXXX)
 trap '/bin/rm -rf "$work_path"' EXIT
 staging="$work_path/root"
 mkdir -p "$staging/Applications"
-ditto --norsrc --noextattr dist/Pippy.app "$staging/Applications/Pippy.app"
+ditto --norsrc --noextattr dist/app.noindex/Pippy.app "$staging/Applications/Pippy.app"
 xattr -cr "$staging"
 codesign --verify --strict "$staging/Applications/Pippy.app"
 pkgbuild --analyze --root "$staging" .build/components.plist

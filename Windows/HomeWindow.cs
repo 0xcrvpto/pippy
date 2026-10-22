@@ -16,9 +16,9 @@ sealed class HomeWindow : Window {
     public Dictionary<Kind, CheckBox> Toggles { get; } = new();
     public Dictionary<Kind, PickerChip> Intervals { get; } = new();
     public Dictionary<Kind, ComboBox> SoundPickers { get; } = new();
-    public PickerChip Start { get; }
-    public PickerChip End { get; }
-    public TextBlock HoursNote { get; }
+    public Dictionary<Kind, (PickerChip Start, PickerChip End)> HourChips { get; } = new();
+    public PickerChip Start => HourChips[Kind.Rally].Start;
+    public PickerChip End => HourChips[Kind.Rally].End;
     public Border UpdateBanner { get; }
     readonly TextBlock updateTitle = new() { FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = Visuals.Ink };
     Release? release;
@@ -36,30 +36,20 @@ sealed class HomeWindow : Window {
         stack.Children.Add(Section("REMINDERS"));
         foreach (var kind in Enum.GetValues<Kind>()) stack.Children.Add(ReminderRow(kind, reset, preview));
 
-        // Workout hours: start and end can never meet, so the window always stays valid.
+        // Active hours for each buddy; start and end can never meet, so each window stays valid.
         var hours = new StackPanel();
-        var hoursTop = new DockPanel { Margin = new Thickness(0,0,0,10) };
+        var hoursTop = new DockPanel { Margin = new Thickness(0,0,0,6) };
         var hint = Visuals.Quiet("Scroll, drag, or click a time", 11); DockPanel.SetDock(hint, Dock.Right); hoursTop.Children.Add(hint);
-        hoursTop.Children.Add(Visuals.Text("Rally's workout hours", 15, true));
+        hoursTop.Children.Add(Visuals.Text("Active hours", 15, true));
         hours.Children.Add(hoursTop);
-        Start = new PickerChip(Picker.QuarterHours, settings.WorkoutStart, true, Visuals.Coral, Visuals.Time, "Workout start time");
-        End = new PickerChip(Picker.QuarterHours, settings.WorkoutEnd, true, Visuals.Coral, Visuals.Time, "Workout end time");
-        Start.Skip = minute => minute == End.Value; End.Skip = minute => minute == Start.Value;
-        var times = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,10) };
-        times.Children.Add(Label("From")); times.Children.Add(Start); times.Children.Add(Label("to", 12)); times.Children.Add(End);
-        hours.Children.Add(times);
-        HoursNote = Visuals.Quiet("", 11); HoursNote.Margin = new Thickness(0);
-        hours.Children.Add(HoursNote);
-        void SaveHours() {
-            settings.WorkoutStart = Start.Value; settings.WorkoutEnd = End.Value; save(); UpdateHoursNote();
-        }
-        Start.Changed += _ => SaveHours(); End.Changed += _ => SaveHours();
-        UpdateHoursNote();
+        foreach (var kind in Enum.GetValues<Kind>()) hours.Children.Add(HoursRow(kind));
+        var hoursNote = Visuals.Quiet("Each buddy only nudges inside its hours, every day · saves automatically", 11); hoursNote.Margin = new Thickness(0,8,0,0);
+        hours.Children.Add(hoursNote);
         stack.Children.Add(Visuals.Card(hours));
 
         stack.Children.Add(SoundCard(previewSound));
         stack.Children.Add(FeedbackBanner());
-        stack.Children.Add(Visuals.Quiet($"Changes save automatically. Closing this window keeps Pippy in the system tray. Eye and stretch reminders run from {Visuals.Time(660)} to {Visuals.Time(1380)}. · Pippy {Feedback.Version}", 11));
+        stack.Children.Add(Visuals.Quiet($"Changes save automatically. Closing this window keeps Pippy in the system tray. · Pippy {Feedback.Version}", 11));
         RefreshStatus();
     }
 
@@ -114,6 +104,30 @@ sealed class HomeWindow : Window {
         card.Background = Visuals.Tint(Visuals.Green, .1); card.BorderBrush = Visuals.Tint(Visuals.Green, .4); card.Padding = new Thickness(18,12,14,12);
         card.Visibility = Visibility.Collapsed;
         return card;
+    }
+
+    UIElement HoursRow(Kind kind) {
+        var current = settings.HoursFor(kind);
+        var color = Visuals.KindColor(kind);
+        var start = new PickerChip(Picker.QuarterHours, current.Start, true, color, Visuals.Time, kind + " start time");
+        var end = new PickerChip(Picker.QuarterHours, current.End, true, color, Visuals.Time, kind + " end time");
+        start.Skip = minute => minute == end.Value; end.Skip = minute => minute == start.Value;
+        HourChips[kind] = (start, end);
+        var nextDay = Visuals.Quiet("next day", 11); nextDay.Margin = new Thickness(10,0,0,0); nextDay.VerticalAlignment = VerticalAlignment.Center;
+        void Refresh() => nextDay.Visibility = settings.HoursFor(kind).Start > settings.HoursFor(kind).End ? Visibility.Visible : Visibility.Collapsed;
+        void Save() { if (settings.SetHours(kind, start.Value, end.Value)) save(); Refresh(); }
+        start.Changed += _ => Save(); end.Changed += _ => Save();
+        Refresh();
+        var row = new Grid { Margin = new Thickness(0,6,0,0) };
+        foreach (var width in new[] { GridLength.Auto, new GridLength(70), GridLength.Auto })
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = width });
+        var mascot = Visuals.Mascot(kind, 28); mascot.Margin = new Thickness(0,0,10,0); row.Children.Add(mascot);
+        var name = Visuals.Text(kind.ToString(), 13, true); name.Margin = new Thickness(0); name.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(name, 1); row.Children.Add(name);
+        var times = new StackPanel { Orientation = Orientation.Horizontal };
+        times.Children.Add(Label("From")); times.Children.Add(start); times.Children.Add(Label("to", 12)); times.Children.Add(end); times.Children.Add(nextDay);
+        Grid.SetColumn(times, 2); row.Children.Add(times);
+        return row;
     }
 
     UIElement ReminderRow(Kind kind, Action<Kind> reset, Action<Kind> preview) {
@@ -221,10 +235,6 @@ sealed class HomeWindow : Window {
     static TextBlock Label(string text, double left = 0) {
         var block = Visuals.Quiet(text, 13); block.Margin = new Thickness(left,0,10,0); block.VerticalAlignment = VerticalAlignment.Center; return block;
     }
-
-    void UpdateHoursNote() => HoursNote.Text = settings.WorkoutStart > settings.WorkoutEnd
-        ? "Every day · ends the following morning · saves automatically"
-        : "Every day · reminders repeat at your chosen interval · saves automatically";
 
     void ApplyEnabled(Kind kind) { foreach (var element in dimmable[kind]) element.Opacity = settings.Enabled[kind] ? 1 : .45; }
 

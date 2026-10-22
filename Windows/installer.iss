@@ -1,7 +1,7 @@
 [Setup]
 AppId={{4C13DE6C-5688-49E6-8333-39314ED2C34F}
 AppName=Pippy
-AppVersion=0.6.1
+AppVersion=0.6.2
 AppPublisher=0xcrvpto
 AppPublisherURL=https://github.com/0xcrvpto/pippy
 DefaultDirName={localappdata}\Programs\Pippy
@@ -11,7 +11,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19041
 OutputDir=..\dist\windows
-OutputBaseFilename=Pippy-0.6.1-Windows-x64-Setup
+OutputBaseFilename=Pippy-0.6.2-Windows-x64-Setup
 SetupIconFile=AppIcon.ico
 UninstallDisplayIcon={app}\Pippy.exe
 Compression=lzma2
