@@ -105,4 +105,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quitPippy() { NSApp.terminate(nil) }
 }
-

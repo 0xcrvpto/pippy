@@ -134,4 +134,3 @@ final class CompanionReminderView: NSView {
     @objc private func postpone() { snooze(); closeReminder() }
     deinit { countdown?.invalidate() }
 }
-

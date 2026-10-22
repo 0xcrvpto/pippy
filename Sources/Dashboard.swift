@@ -440,4 +440,3 @@ final class ReminderRowView: NSView {
         scheduler.setEnabled(sender.state == .on, for: kind)
     }
 }
-
