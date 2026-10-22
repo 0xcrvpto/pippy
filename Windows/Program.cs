@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Net.Http;
+using System.Threading.Tasks;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -29,9 +31,13 @@ sealed class Controller : IDisposable {
     readonly Forms.NotifyIcon tray;
     readonly DispatcherTimer clock = new() { Interval = TimeSpan.FromSeconds(5) };
     readonly Queue<Kind> pending = new();
-    readonly Window home;
+    readonly HomeWindow home;
     ReminderWindow? popup;
     bool quitting;
+    Release? update;
+    readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    readonly DispatcherTimer updateClock = new() { Interval = TimeSpan.FromHours(24) };
+    readonly Forms.ToolStripMenuItem updateItem = new("Check for updates");
     public Controller(Application app) {
         this.app = app;
         store = new SettingsStore(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Pippy", "settings.json"));
@@ -42,6 +48,8 @@ sealed class Controller : IDisposable {
         tray = new Forms.NotifyIcon { Icon = new System.Drawing.Icon(iconStream), Text = "Pippy — little check-ins", Visible = true };
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("Open Pippy", null, (_,_) => app.Dispatcher.Invoke(OpenHome));
+        updateItem.Click += (_,_) => app.Dispatcher.Invoke(() => _ = CheckForUpdates(manual: true));
+        menu.Items.Add(updateItem);
         foreach (var kind in Enum.GetValues<Kind>()) menu.Items.Add("Preview "+kind, null, (_,_) => app.Dispatcher.Invoke(() => ShowReminder(kind)));
         menu.Items.Add(new Forms.ToolStripSeparator());
         var feedback = new Forms.ToolStripMenuItem("Send feedback");
@@ -53,6 +61,30 @@ sealed class Controller : IDisposable {
         tray.ContextMenuStrip = menu; tray.DoubleClick += (_,_) => app.Dispatcher.Invoke(OpenHome);
         clock.Tick += (_,_) => { var kind = schedule.Due(DateTimeOffset.Now); if (kind.HasValue) { Save(); ShowReminder(kind.Value); } };
         clock.Start(); OpenHome();
+        // Check shortly after launch, then once a day.
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("Pippy/" + Feedback.Version);
+        http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        var firstCheck = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        firstCheck.Tick += (_,_) => { firstCheck.Stop(); _ = CheckForUpdates(manual: false); };
+        firstCheck.Start();
+        updateClock.Tick += (_,_) => _ = CheckForUpdates(manual: false); updateClock.Start();
+    }
+    async Task CheckForUpdates(bool manual) {
+        if (manual && update != null) { Visuals.Open(update.Download); return; }
+        Release? latest = null;
+        try { latest = Updates.Parse(await http.GetStringAsync(Updates.LatestUrl)); }
+        catch (Exception e) when (e is HttpRequestException || e is TaskCanceledException) { }
+        if (latest == null) {
+            if (manual) MessageBox.Show("Pippy couldn't check for updates. Check your internet connection, or visit github.com/0xcrvpto/pippy/releases.", "Pippy");
+            return;
+        }
+        if (!Updates.IsNewer(latest.Version, Feedback.Version)) {
+            if (manual) MessageBox.Show($"You're up to date. Pippy {Feedback.Version} is the latest version.", "Pippy");
+            return;
+        }
+        update = latest; home.ShowUpdate(latest); updateItem.Text = $"Download Pippy {latest.Version}…";
+        if (manual && MessageBox.Show($"Pippy {latest.Version} is available. You have {Feedback.Version}.\n\nDownload it now?", "Pippy", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+            Visuals.Open(latest.Download);
     }
     void OpenHome() { home.Show(); home.Activate(); }
     // Explicit previews play even when reminder sounds are off; Blink demonstrates all three break cues.
@@ -76,5 +108,5 @@ sealed class Controller : IDisposable {
         popup.Show();
         if (kind != Kind.Blink && settings.Sound) audio.Play(Sounds.Nudge(settings.SoundSets[kind]));
     }
-    public void Dispose() { quitting=true; clock.Stop(); popup?.Close(); tray.Visible=false; tray.Icon?.Dispose(); tray.Dispose(); audio.Dispose(); }
+    public void Dispose() { quitting=true; clock.Stop(); updateClock.Stop(); http.Dispose(); popup?.Close(); tray.Visible=false; tray.Icon?.Dispose(); tray.Dispose(); audio.Dispose(); }
 }

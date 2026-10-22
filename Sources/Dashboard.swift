@@ -13,6 +13,8 @@ final class DashboardView: NSView {
     private var statusDot: NSView!
     private var statusLabel: NSTextField!
     private var selectorButtons: [ReminderKind: PillButton] = [:]
+    private var feedbackBanner: FeedbackBanner!
+    private(set) var updateBanner: UpdateBanner!
 
     init(scheduler: ReminderScheduler, frame: NSRect) {
         self.scheduler = scheduler
@@ -26,6 +28,20 @@ final class DashboardView: NSView {
         buildFooter()
         refreshSchedule()
         NotificationCenter.default.addObserver(self, selector: #selector(refreshSchedule), name: .pippySettingsChanged, object: scheduler)
+        NotificationCenter.default.addObserver(self, selector: #selector(updateAvailable(_:)), name: .pippyUpdateAvailable, object: nil)
+        if let release = (NSApp.delegate as? AppDelegate)?.updates?.available { showUpdate(release) }
+    }
+
+    /// Swaps the feedback card for an update banner; feedback stays in the header.
+    func showUpdate(_ release: ReleaseInfo) {
+        updateBanner.release = release
+        updateBanner.isHidden = false
+        feedbackBanner.isHidden = true
+    }
+
+    @objc private func updateAvailable(_ note: Notification) {
+        guard let release = note.userInfo?["release"] as? ReleaseInfo else { return }
+        showUpdate(release)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -65,11 +81,11 @@ final class DashboardView: NSView {
         status.addSubview(statusLabel)
         addSubview(status)
 
-        let preferences = softPill("⚙  Preferences")
+        let preferences = softPill("Preferences", symbol: "gearshape.fill")
         preferences.target = NSApp.delegate
         preferences.action = #selector(AppDelegate.openPreferences)
         addSubview(preferences)
-        let feedback = softPill("✉  Feedback")
+        let feedback = softPill("Feedback", symbol: "bubble.left.fill")
         feedback.target = self
         feedback.action = #selector(showFeedbackMenu(_:))
         feedback.toolTip = "Report a problem or share an idea"
@@ -124,12 +140,17 @@ final class DashboardView: NSView {
             rows.topAnchor.constraint(equalTo: topAnchor, constant: 192)
         ])
 
-        let banner = FeedbackBanner()
-        addSubview(banner)
-        NSLayoutConstraint.activate([
-            banner.leadingAnchor.constraint(equalTo: rows.leadingAnchor), banner.topAnchor.constraint(equalTo: rows.bottomAnchor, constant: 14),
-            banner.widthAnchor.constraint(equalToConstant: 570), banner.heightAnchor.constraint(equalToConstant: 54)
-        ])
+        feedbackBanner = FeedbackBanner()
+        updateBanner = UpdateBanner()
+        updateBanner.isHidden = true
+        updateBanner.onDismiss = { [weak self] in self?.updateBanner.isHidden = true; self?.feedbackBanner.isHidden = false }
+        for banner in [feedbackBanner!, updateBanner!] as [NSView] {
+            addSubview(banner)
+            NSLayoutConstraint.activate([
+                banner.leadingAnchor.constraint(equalTo: rows.leadingAnchor), banner.topAnchor.constraint(equalTo: rows.bottomAnchor, constant: 14),
+                banner.widthAnchor.constraint(equalToConstant: 570), banner.heightAnchor.constraint(equalToConstant: 54)
+            ])
+        }
     }
 
     private func buildRightColumn() {
@@ -171,7 +192,7 @@ final class DashboardView: NSView {
         }
         highlightSelector()
 
-        let preview = inkPill("▶   Preview reminder")
+        let preview = inkPill("Preview reminder", symbol: "play.fill")
         preview.target = self
         preview.action = #selector(showPreview)
         previewCard.addSubview(preview)
@@ -288,11 +309,11 @@ final class FeedbackBanner: NSView {
         let icon = symbol("bubble.left.and.bubble.right.fill", size: 14, color: Palette.lilac)
         let title = label("Something off, or have an idea?", size: 12, weight: .semibold, color: Palette.ink)
         let detail = label("Tell me directly — every message gets read.", size: 10, weight: .regular, color: Palette.muted)
-        let email = PillButton(title: "✉  Email", size: 10, weight: .semibold, color: Palette.ink,
+        let email = PillButton(title: "Email", symbol: "envelope.fill", size: 10, weight: .semibold, color: Palette.ink,
                                fill: Palette.lilac.withAlphaComponent(0.18), hoverFill: Palette.lilac.withAlphaComponent(0.32))
         email.target = FeedbackActions.shared; email.action = #selector(FeedbackActions.email)
         email.toolTip = Feedback.email
-        let telegram = PillButton(title: "➤  Telegram", size: 10, weight: .semibold, color: Palette.ink,
+        let telegram = PillButton(title: "Telegram", symbol: "paperplane.fill", size: 10, weight: .semibold, color: Palette.ink,
                                   fill: Palette.mint.withAlphaComponent(0.2), hoverFill: Palette.mint.withAlphaComponent(0.36))
         telegram.target = FeedbackActions.shared; telegram.action = #selector(FeedbackActions.telegram)
         telegram.toolTip = Feedback.telegram.absoluteString
@@ -308,6 +329,51 @@ final class FeedbackBanner: NSView {
         ])
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+/// "Pippy 0.7 is ready" with What's new and Download buttons.
+final class UpdateBanner: NSView {
+    var release: ReleaseInfo? { didSet { title.stringValue = "Pippy \(release?.version ?? "") is ready" } }
+    var onDismiss: () -> Void = {}
+    private let title = label("", size: 12, weight: .semibold, color: Palette.ink)
+
+    init() {
+        super.init(frame: .zero)
+        styleCard(self, radius: 16)
+        layer?.backgroundColor = Palette.green.withAlphaComponent(0.1).cgColor
+        layer?.borderColor = Palette.green.withAlphaComponent(0.4).cgColor
+        let icon = symbol("arrow.down.circle.fill", size: 20, color: Palette.green)
+        icon.imageScaling = .scaleProportionallyUpOrDown
+        let detail = label("Download it and drag it into Applications.", size: 10, weight: .regular, color: Palette.muted)
+        let notes = PillButton(title: "What's new", size: 10, weight: .semibold, color: Palette.ink,
+                               fill: NSColor.white.withAlphaComponent(0.8), hoverFill: .white)
+        notes.target = self; notes.action = #selector(openNotes)
+        let download = inkPill("Download", symbol: "arrow.down", size: 10, radius: 14)
+        download.target = self; download.action = #selector(openDownload)
+        let close = symbolButton("xmark", color: Palette.muted)
+        close.target = self; close.action = #selector(dismiss); close.toolTip = "Hide until next launch"
+        close.setAccessibilityLabel("Hide update banner")
+        for button in [notes, download] { button.setContentCompressionResistancePriority(.required, for: .horizontal) }
+        for view in [icon, title, detail, notes, download, close] { addSubview(view) }
+        NSLayoutConstraint.activate([
+            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16), icon.centerYAnchor.constraint(equalTo: centerYAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 20), icon.heightAnchor.constraint(equalToConstant: 20),
+            title.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 11), title.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+            detail.leadingAnchor.constraint(equalTo: title.leadingAnchor), detail.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 2),
+            detail.trailingAnchor.constraint(lessThanOrEqualTo: notes.leadingAnchor, constant: -10),
+            close.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10), close.centerYAnchor.constraint(equalTo: centerYAnchor),
+            close.widthAnchor.constraint(equalToConstant: 18), close.heightAnchor.constraint(equalToConstant: 18),
+            download.trailingAnchor.constraint(equalTo: close.leadingAnchor, constant: -8), download.centerYAnchor.constraint(equalTo: centerYAnchor),
+            download.heightAnchor.constraint(equalToConstant: 28),
+            notes.trailingAnchor.constraint(equalTo: download.leadingAnchor, constant: -8), notes.centerYAnchor.constraint(equalTo: centerYAnchor),
+            notes.heightAnchor.constraint(equalToConstant: 28)
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    @objc private func openNotes() { if let release { NSWorkspace.shared.open(release.page) } }
+    @objc private func openDownload() { if let release { NSWorkspace.shared.open(release.download) } }
+    @objc private func dismiss() { onDismiss() }
 }
 
 final class PreferencesView: NSView {
@@ -437,7 +503,7 @@ final class PreferencesView: NSView {
             picker.action = #selector(chooseSound(_:))
             picker.setAccessibilityLabel("\(kind.mascotName) sound")
             soundPickers[kind] = picker
-            let play = PillButton(title: "▶  Preview", size: 10, weight: .semibold, color: Palette.ink,
+            let play = PillButton(title: "Preview", symbol: "play.fill", size: 10, weight: .semibold, color: Palette.ink,
                                   fill: kind.color.withAlphaComponent(0.16), hoverFill: kind.color.withAlphaComponent(0.3))
             play.identifier = NSUserInterfaceItemIdentifier(kind.rawValue)
             play.target = self

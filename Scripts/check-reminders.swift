@@ -56,6 +56,18 @@ import AppKit
   precondition(Feedback.telegram.absoluteString == "https://t.me/i0xcrvpto")
   precondition(Feedback.menu().items.count == 2)
   print("PASS: feedback email link and Telegram link")
+  precondition(Updates.isNewer("v0.6.1", than: "0.6") && Updates.isNewer("0.10", than: "0.9.9") && !Updates.isNewer("v0.6.1", than: "0.6.1") && !Updates.isNewer("0.6", than: "0.6.1"))
+  let sample = #"{"tag_name":"v0.7.0","html_url":"https://github.com/0xcrvpto/pippy/releases/tag/v0.7.0","draft":false,"prerelease":false,"assets":[{"name":"Pippy-0.7-Windows-x64-Setup.exe","browser_download_url":"https://example.com/win.exe"},{"name":"Pippy-0.7-arm64.dmg","browser_download_url":"https://example.com/mac.dmg"}]}"#
+  let release = Updates.parse(Data(sample.utf8))!
+  precondition(release.version == "0.7.0" && release.download.absoluteString == "https://example.com/mac.dmg" && release.page.absoluteString.hasSuffix("v0.7.0"))
+  let pageOnly = Updates.parse(Data(#"{"tag_name":"v0.8","html_url":"https://github.com/0xcrvpto/pippy/releases/tag/v0.8","assets":[]}"#.utf8))!
+  precondition(pageOnly.download == pageOnly.page)
+  precondition(Updates.parse(Data(#"{"tag_name":"v0.9","html_url":"https://x.y","prerelease":true}"#.utf8)) == nil && Updates.parse(Data("nope".utf8)) == nil)
+  let dashboard = DashboardView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 960, height: 660))
+  precondition(dashboard.updateBanner.isHidden)
+  dashboard.showUpdate(release)
+  precondition(!dashboard.updateBanner.isHidden)
+  print("PASS: update version comparison, release parsing with Mac asset and page fallback, banner shows")
   var snoozes = 0; var dismissals = 0; var completed = 0; var cues: [ReminderCue] = []
   for kind in ReminderKind.allCases {
    let view = CompanionReminderView(kind: kind, dismiss: { dismissals += 1 }, snooze: { snoozes += 1 }, playCue: {_ in})

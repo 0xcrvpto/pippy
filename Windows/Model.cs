@@ -22,10 +22,44 @@ public static class Sounds {
 public static class Feedback {
     public const string Email = "0xcrvpto@webuild3.xyz";
     public const string Telegram = "https://t.me/i0xcrvpto";
-    public static string Version => typeof(Feedback).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}" : "dev";
+    public static string Version => typeof(Feedback).Assembly.GetName().Version is { } v ? (v.Build > 0 ? $"{v.Major}.{v.Minor}.{v.Build}" : $"{v.Major}.{v.Minor}") : "dev";
     public static string MailtoUri() {
         string body = "What happened, or what would you like to see?\n\n\n—\nPippy " + Version + " · " + Environment.OSVersion.VersionString;
         return "mailto:" + Email + "?subject=" + Uri.EscapeDataString("Pippy feedback") + "&body=" + Uri.EscapeDataString(body);
+    }
+}
+/// A published Pippy release that is newer than the running app.
+public record Release(string Version, string Page, string Download);
+/// Reads GitHub's latest-release JSON. Nothing about the user is sent.
+public static class Updates {
+    public const string LatestUrl = "https://api.github.com/repos/0xcrvpto/pippy/releases/latest";
+    public const string AssetSuffix = "-Windows-x64-Setup.exe";
+    static int[] Parts(string version) => version.Trim().TrimStart('v','V').Split('.')
+        .Select(part => int.TryParse(new string(part.TakeWhile(char.IsDigit).ToArray()), out int n) ? n : 0).ToArray();
+    public static bool IsNewer(string candidate, string current) {
+        int[] a = Parts(candidate), b = Parts(current);
+        for (int i = 0; i < Math.Max(a.Length, b.Length); i++) {
+            int left = i < a.Length ? a[i] : 0, right = i < b.Length ? b[i] : 0;
+            if (left != right) return left > right;
+        }
+        return false;
+    }
+    /// The download falls back to the release page when no Windows installer is attached.
+    public static Release? Parse(string json) {
+        try {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("tag_name", out var tag) || !root.TryGetProperty("html_url", out var page)) return null;
+            if ((root.TryGetProperty("draft", out var draft) && draft.ValueKind == JsonValueKind.True) ||
+                (root.TryGetProperty("prerelease", out var pre) && pre.ValueKind == JsonValueKind.True)) return null;
+            string? download = null;
+            if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
+                foreach (var asset in assets.EnumerateArray())
+                    if (asset.TryGetProperty("name", out var name) && name.GetString()?.EndsWith(AssetSuffix, StringComparison.Ordinal) == true
+                        && asset.TryGetProperty("browser_download_url", out var url)) { download = url.GetString(); break; }
+            string pageUrl = page.GetString() ?? "";
+            return new Release((tag.GetString() ?? "").TrimStart('v','V'), pageUrl, download ?? pageUrl);
+        } catch (JsonException) { return null; }
     }
 }
 /// Stepping for the scroll picker: wraps or clamps, and steps over excluded values.

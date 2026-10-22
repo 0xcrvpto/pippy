@@ -19,6 +19,9 @@ sealed class HomeWindow : Window {
     public PickerChip Start { get; }
     public PickerChip End { get; }
     public TextBlock HoursNote { get; }
+    public Border UpdateBanner { get; }
+    readonly TextBlock updateTitle = new() { FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = Visuals.Ink };
+    Release? release;
 
     public HomeWindow(Settings settings, Action save, Action<Kind> reset, Action<Kind> preview, Action<Kind> previewSound) {
         this.settings = settings; this.save = save;
@@ -28,6 +31,8 @@ sealed class HomeWindow : Window {
         Content = new ScrollViewer { Content = stack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
 
         stack.Children.Add(Header());
+        UpdateBanner = BuildUpdateBanner();
+        stack.Children.Add(UpdateBanner);
         stack.Children.Add(Section("REMINDERS"));
         foreach (var kind in Enum.GetValues<Kind>()) stack.Children.Add(ReminderRow(kind, reset, preview));
 
@@ -80,6 +85,35 @@ sealed class HomeWindow : Window {
         right.Children.Add(new Border { Background = Brushes.White, CornerRadius = new CornerRadius(14), Padding = new Thickness(12,6,12,6), Child = pill, VerticalAlignment = VerticalAlignment.Center });
         Grid.SetColumn(right, 1); grid.Children.Add(right);
         return grid;
+    }
+
+    /// Shows "Pippy 0.7 is ready" with What's new and Download buttons above the reminders.
+    public void ShowUpdate(Release update) {
+        release = update;
+        updateTitle.Text = $"Pippy {update.Version} is ready";
+        UpdateBanner.Visibility = Visibility.Visible;
+    }
+
+    Border BuildUpdateBanner() {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var icon = Visuals.Glyph("\uE896", 18, Visuals.Tint(Visuals.Green, 1)); icon.Margin = new Thickness(0,0,14,0); grid.Children.Add(icon);
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(updateTitle);
+        var detail = Visuals.Quiet("Download and run the installer. Your settings carry over.", 12); detail.Margin = new Thickness(0); text.Children.Add(detail);
+        Grid.SetColumn(text, 1); grid.Children.Add(text);
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+        buttons.Children.Add(Visuals.Pill("What's new", (_,_) => { if (release != null) Visuals.Open(release.Page); }, Brushes.White, size: 12));
+        buttons.Children.Add(Visuals.Pill("Download", (_,_) => { if (release != null) Visuals.Open(release.Download); }, Visuals.Ink, Brushes.White, 12));
+        var later = Visuals.Pill("\u2715", (_,_) => UpdateBanner.Visibility = Visibility.Collapsed, Brushes.Transparent, Visuals.Muted, 11);
+        later.Margin = new Thickness(0); later.ToolTip = "Hide until next launch";
+        System.Windows.Automation.AutomationProperties.SetName(later, "Hide update banner");
+        buttons.Children.Add(later);
+        Grid.SetColumn(buttons, 2); grid.Children.Add(buttons);
+        var card = Visuals.Card(grid);
+        card.Background = Visuals.Tint(Visuals.Green, .1); card.BorderBrush = Visuals.Tint(Visuals.Green, .4); card.Padding = new Thickness(18,12,14,12);
+        card.Visibility = Visibility.Collapsed;
+        return card;
     }
 
     UIElement ReminderRow(Kind kind, Action<Kind> reset, Action<Kind> preview) {

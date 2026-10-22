@@ -10,8 +10,8 @@ Pippy is publicly available from [Releases](https://github.com/0xcrvpto/pippy/re
 
 | Platform | Download | Requirements |
 | --- | --- | --- |
-| macOS | [Mac disk image](https://github.com/0xcrvpto/pippy/releases/latest/download/Pippy-0.6-arm64.dmg) | Apple silicon, macOS 13+ |
-| Windows | [Windows installer](https://github.com/0xcrvpto/pippy/releases/latest/download/Pippy-0.6-Windows-x64-Setup.exe) | Windows 10 version 2004+ or Windows 11, x64 |
+| macOS | [Mac disk image](https://github.com/0xcrvpto/pippy/releases/latest/download/Pippy-0.6.1-arm64.dmg) | Apple silicon, macOS 13+ |
+| Windows | [Windows installer](https://github.com/0xcrvpto/pippy/releases/latest/download/Pippy-0.6.1-Windows-x64-Setup.exe) | Windows 10 version 2004+ or Windows 11, x64 |
 
 Quit any running copy before installing. On Mac, open the `.dmg` and drag Pippy onto the Applications folder in the window that appears, then eject the disk image. On Windows, open the setup `.exe`; it installs for your user and adds a Start menu shortcut. The Windows runtime is included.
 
@@ -23,7 +23,7 @@ Open Pippy from Applications on Mac or the Start menu on Windows. Adjust reminde
 
 Eye and stretch reminders run from 11 a.m. to 11 p.m.; workout hours are adjustable in Preferences (including overnight schedules), with 2–6 p.m. as the default. Snoozes last for the current app session. macOS Reduce Motion disables mascot movement; Windows has a Reduce Motion preference.
 
-The app stores settings locally and does not require an account or network connection.
+The app stores settings locally and does not require an account. Once a day it asks GitHub whether a newer release exists and, if so, shows an update banner with a download button; nothing about you is sent. You can also choose **Check for Updates** from the menu-bar or tray menu. Updates are not installed automatically: download the new version and install it over the old one, and your settings carry over.
 
 ## Feedback
 
