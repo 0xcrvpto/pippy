@@ -23,7 +23,7 @@ enum SoundSet: String, CaseIterable {
         case .woodblock: "Woodblock"
         }
     }
-    // The original bells keep their Blink* filenames, which the Windows build also embeds.
+    // The original bells keep their original Blink* filenames.
     var filePrefix: String {
         switch self {
         case .bells: "Blink"
