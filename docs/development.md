@@ -25,3 +25,18 @@ Ad-hoc signing is not Developer ID signing. Public friction-free distribution re
 Mascot animations transform complete artwork, not independently rigged facial features. Snoozes are in-memory. Workout hours are configurable and saved locally; eye and stretch hours remain fixed.
 
 Audio assets in `Assets/Sounds/` are original synthesized WAV files. Regenerate them with `python3 Scripts/generate-sounds.py`. Explicit sound previews play even when reminder sounds are muted; automatic cues respect mute.
+
+## Windows
+
+`Windows/` contains the native WPF app targeting .NET 10. It shares artwork and audio with macOS, and stores settings under `%LOCALAPPDATA%\Pippy`. The per-user Inno Setup installer includes the runtime and adds a Start menu shortcut.
+
+On Windows with the .NET 10 SDK and Inno Setup 6:
+
+```powershell
+dotnet publish Windows/Pippy.csproj -c Release -r win-x64 --self-contained true -o dist/windows/publish
+& dist/windows/publish/Pippy.exe --self-test
+& dist/windows/publish/Pippy.exe --smoke-test previews
+& "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe" Windows/installer.iss
+```
+
+The Windows GitHub Actions workflow builds the app, tests scheduling and persistence, decodes embedded assets, runs the actual 20-second countdown, renders the UI, and silently installs, tests, and uninstalls the package. It uploads the installer, checksum, and rendered previews as run artifacts. Manual dispatch can attach the installer to an existing release tag. The installer is not Authenticode signed.
