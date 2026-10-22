@@ -52,18 +52,24 @@ final class PillButton: NSButton {
     private var tracking: NSTrackingArea?
     private var hovering = false { didSet { refreshFill() } }
 
-    init(title: String, size: CGFloat, weight: NSFont.Weight, color: NSColor, fill: NSColor, hoverFill: NSColor, radius: CGFloat? = nil) {
+    init(title: String, symbol: String? = nil, size: CGFloat, weight: NSFont.Weight, color: NSColor, fill: NSColor, hoverFill: NSColor, radius: CGFloat? = nil) {
         self.fill = fill
         self.hoverFill = hoverFill
         self.radius = radius
         super.init(frame: .zero)
-        self.title = title
         translatesAutoresizingMaskIntoConstraints = false
         font = NSFont.systemFont(ofSize: size, weight: weight)
         contentTintColor = color
-        attributedTitle = NSAttributedString(string: title, attributes: [.font: font!, .foregroundColor: color])
         isBordered = false
         alignment = .center
+        if let symbol, let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: size - 1, weight: weight)) {
+            // A template symbol, tinted with the title colour and set just before the text.
+            self.image = image
+            imagePosition = .imageLeading
+            imageHugsTitle = true
+        }
+        self.title = title
         wantsLayer = true
         refreshFill()
     }
@@ -73,12 +79,22 @@ final class PillButton: NSButton {
     override var title: String {
         didSet {
             guard let font, let color = contentTintColor else { return }
-            attributedTitle = NSAttributedString(string: title, attributes: [.font: font, .foregroundColor: color])
+            // A leading gap separates the symbol from the text.
+            let gap = NSAttributedString(string: image == nil ? "" : " ", attributes: [.font: font, .kern: 2])
+            let text = NSMutableAttributedString(attributedString: gap)
+            text.append(NSAttributedString(string: title, attributes: [.font: font, .foregroundColor: color]))
+            attributedTitle = text
         }
     }
     override var intrinsicContentSize: NSSize {
         let base = super.intrinsicContentSize
-        return NSSize(width: base.width + 22, height: max(base.height, 24))
+        return NSSize(width: base.width + (image == nil ? 22 : 26), height: max(base.height, 24))
+    }
+    // Keyboard focus follows the pill's rounded shape instead of a square box.
+    override var focusRingMaskBounds: NSRect { bounds }
+    override func drawFocusRingMask() {
+        let corner = radius ?? bounds.height / 2
+        NSBezierPath(roundedRect: bounds, xRadius: corner, yRadius: corner).fill()
     }
     override func layout() {
         super.layout()
@@ -100,14 +116,14 @@ final class PillButton: NSButton {
 }
 
 /// Soft white pill used for secondary actions on the cream canvas.
-func softPill(_ title: String, size: CGFloat = 10) -> PillButton {
-    PillButton(title: title, size: size, weight: .semibold, color: Palette.ink,
+func softPill(_ title: String, symbol: String? = nil, size: CGFloat = 10) -> PillButton {
+    PillButton(title: title, symbol: symbol, size: size, weight: .semibold, color: Palette.ink,
                fill: NSColor.white.withAlphaComponent(0.85), hoverFill: NSColor.white)
 }
 
 /// Dark primary action.
-func inkPill(_ title: String, size: CGFloat = 12, radius: CGFloat = 11) -> PillButton {
-    PillButton(title: title, size: size, weight: .semibold, color: .white,
+func inkPill(_ title: String, symbol: String? = nil, size: CGFloat = 12, radius: CGFloat = 11) -> PillButton {
+    PillButton(title: title, symbol: symbol, size: size, weight: .semibold, color: .white,
                fill: Palette.ink, hoverFill: Palette.ink.blended(withFraction: 0.18, of: .white) ?? Palette.ink, radius: radius)
 }
 

@@ -23,6 +23,8 @@ The installer disables bundle relocation so it does not overwrite a Desktop deve
 
 Ad-hoc signing is not Developer ID signing. Public friction-free distribution requires an Apple Developer ID Application certificate, a Developer ID Installer certificate, and notarization. None is bundled in this repository.
 
+The update check (`Sources/Updates.swift`, `Updates` in `Windows/Model.cs`) reads `releases/latest` from the GitHub API, ignores drafts and pre-releases, compares versions numerically, and links to the release asset ending in `-arm64.dmg` or `-Windows-x64-Setup.exe` (falling back to the release page). Releases must therefore be published as regular, non-pre-release GitHub releases with those asset names.
+
 Mascot animations transform complete artwork, not independently rigged facial features. Snoozes are in-memory. Workout hours are configurable and saved locally; eye and stretch hours remain fixed.
 
 Audio assets in `Assets/Sounds/` are original synthesized WAV files in five sets (`Blink*` is Soft Bells, plus `Marimba*`, `Chimes*`, `Kalimba*`, `Woodblock*`), each with start, halfway, complete, and preview cues. Regenerate them with `python3 Scripts/generate-sounds.py`; the `Blink*` files are unchanged byte for byte. Each buddy's set is saved under `sound.<kind>`. Explicit sound previews play even when reminder sounds are muted; automatic cues respect mute.

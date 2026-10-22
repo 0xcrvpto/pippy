@@ -40,8 +40,14 @@ static class Checks {
             Assert(Picker.Nearest(q,560)==37,"picker nearest value");
             var mail=Feedback.MailtoUri();Assert(mail.StartsWith("mailto:0xcrvpto@webuild3.xyz?subject=Pippy%20feedback&body=")&&!mail.Contains(' '),"feedback email link");
             Assert(Feedback.Telegram=="https://t.me/i0xcrvpto","feedback telegram link");
+            Assert(Updates.IsNewer("v0.6.1","0.6")&&Updates.IsNewer("0.10","0.9.9")&&!Updates.IsNewer("v0.6.1","0.6.1")&&!Updates.IsNewer("0.6","0.6.1"),"update version comparison");
+            var latest=Updates.Parse("{\"tag_name\":\"v0.7.0\",\"html_url\":\"https://github.com/0xcrvpto/pippy/releases/tag/v0.7.0\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"name\":\"Pippy-0.7-arm64.dmg\",\"browser_download_url\":\"https://example.com/mac.dmg\"},{\"name\":\"Pippy-0.7-Windows-x64-Setup.exe\",\"browser_download_url\":\"https://example.com/win.exe\"}]}");
+            Assert(latest!=null&&latest.Version=="0.7.0"&&latest.Download=="https://example.com/win.exe","update release parsing");
+            var pageOnly=Updates.Parse("{\"tag_name\":\"v0.8\",\"html_url\":\"https://github.com/0xcrvpto/pippy/releases/tag/v0.8\",\"assets\":[]}");
+            Assert(pageOnly!=null&&pageOnly.Download==pageOnly.Page,"update page fallback");
+            Assert(Updates.Parse("{\"tag_name\":\"v0.9\",\"html_url\":\"x\",\"prerelease\":true}")==null&&Updates.Parse("nope")==null,"update ignores prereleases and bad JSON");
             using(var icon=Visuals.Resource("AppIcon.ico"))using(var image=new System.Drawing.Icon(icon))Assert(image.Width>0,"tray icon");
-            File.WriteAllText(Path.Combine(Path.GetTempPath(),"pippy-test-result.txt"),"PASS: schedule, persistence, snooze, countdown, images, audio for every sound set, sound choices, picker, feedback links, icon");
+            File.WriteAllText(Path.Combine(Path.GetTempPath(),"pippy-test-result.txt"),"PASS: schedule, persistence, snooze, countdown, images, audio for every sound set, sound choices, picker, feedback links, update parsing, icon");
             return 0;
         } catch(Exception e) { File.WriteAllText(Path.Combine(Path.GetTempPath(),"pippy-test-result.txt"),e.ToString());return 1; }
         finally { if(Directory.Exists(temp))Directory.Delete(temp,true); }
@@ -64,6 +70,9 @@ static class Checks {
             home.SoundPickers[Kind.Rally].SelectedIndex=(int)SoundSet.Chimes;
             Assert(settings.SoundSets[Kind.Rally]==SoundSet.Chimes&&previews.SequenceEqual(new[]{Kind.Rally}),"UI sound picker saves and previews");
             Assert(saves>=4,"UI changes save");
+            Assert(home.UpdateBanner.Visibility==Visibility.Collapsed,"update banner starts hidden");
+            home.ShowUpdate(new Release("0.7","https://github.com/0xcrvpto/pippy/releases","https://github.com/0xcrvpto/pippy/releases"));
+            Assert(home.UpdateBanner.Visibility==Visibility.Visible,"update banner shows");Visuals.Render(home,Path.Combine(output,"update.png"));
             popup.Primary.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert(!popup.Primary.IsEnabled&&cues.SequenceEqual(new[]{Cue.Start}),"UI starts break");wait.Start();
         }));

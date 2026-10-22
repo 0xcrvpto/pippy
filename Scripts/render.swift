@@ -12,6 +12,9 @@ import AppKit
     ("Preferences", PreferencesView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 560, height: 716))),
     ("Dashboard", DashboardView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 960, height: 660)))
   ]
+  let withUpdate = DashboardView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 960, height: 660))
+  withUpdate.showUpdate(ReleaseInfo(version: "0.7", page: URL(string: "https://github.com/0xcrvpto/pippy/releases")!, download: URL(string: "https://github.com/0xcrvpto/pippy/releases")!))
+  views.append(("Dashboard-Update", withUpdate))
   for kind in ReminderKind.allCases {
     views.append((kind.mascotName, CompanionReminderView(kind: kind, dismiss: {}, snooze: {}, playCue: {_ in})))
   }
