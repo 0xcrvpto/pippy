@@ -29,7 +29,7 @@ Audio assets in `Assets/Sounds/` are original synthesized WAV files in five sets
 
 ## Windows
 
-`Windows/` contains the native WPF app targeting .NET 10. It shares artwork and audio with macOS, and stores settings under `%LOCALAPPDATA%\Pippy`. The per-user Inno Setup installer includes the runtime and adds a Start menu shortcut.
+`Windows/` contains the native WPF app targeting .NET 10. It shares artwork, all five sound sets, feedback links, and the scroll-picker behaviour with macOS, and stores settings under `%LOCALAPPDATA%\Pippy`. The per-user Inno Setup installer includes the runtime and adds a Start menu shortcut.
 
 On Windows with the .NET 10 SDK and Inno Setup 6:
 

@@ -7,6 +7,48 @@ using System.Text.Json;
 namespace Pippy;
 public enum Kind { Rally, Blink, Mochi }
 public enum Cue { Start, Halfway, Complete }
+public enum SoundSet { Bells, Marimba, Chimes, Kalimba, Woodblock }
+public static class Sounds {
+    public static string Title(SoundSet set) => set switch {
+        SoundSet.Bells => "Soft Bells", SoundSet.Chimes => "Wind Chimes", _ => set.ToString()
+    };
+    // The original bells keep their Blink* filenames, shared with the Mac app.
+    static string Prefix(SoundSet set) => set == SoundSet.Bells ? "Blink" : set.ToString();
+    public static string File(SoundSet set, Cue cue) => Prefix(set) + cue;
+    public static string Nudge(SoundSet set) => File(set, Cue.Start);
+    public static string Preview(SoundSet set) => Prefix(set) + "Preview";
+    public static SoundSet Default(Kind kind) => kind switch { Kind.Rally => SoundSet.Marimba, Kind.Blink => SoundSet.Bells, _ => SoundSet.Kalimba };
+}
+public static class Feedback {
+    public const string Email = "0xcrvpto@webuild3.xyz";
+    public const string Telegram = "https://t.me/i0xcrvpto";
+    public static string Version => typeof(Feedback).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}" : "dev";
+    public static string MailtoUri() {
+        string body = "What happened, or what would you like to see?\n\n\n—\nPippy " + Version + " · " + Environment.OSVersion.VersionString;
+        return "mailto:" + Email + "?subject=" + Uri.EscapeDataString("Pippy feedback") + "&body=" + Uri.EscapeDataString(body);
+    }
+}
+/// Stepping for the scroll picker: wraps or clamps, and steps over excluded values.
+public static class Picker {
+    public static int Step(IReadOnlyList<int> values, int index, int delta, bool wraps, Func<int,bool> skip) {
+        if (delta == 0) return index;
+        int direction = delta > 0 ? 1 : -1, remaining = Math.Abs(delta), candidate = index;
+        for (int guard = 0; guard < values.Count * 2 && remaining > 0; guard++) {
+            int next = candidate + direction;
+            if (wraps) next = (next + values.Count) % values.Count;
+            if (next < 0 || next >= values.Count) break;
+            candidate = next;
+            if (!skip(values[candidate])) remaining--;
+        }
+        return candidate != index && !skip(values[candidate]) ? candidate : index;
+    }
+    public static int Nearest(IReadOnlyList<int> values, int value) {
+        int best = 0;
+        for (int i = 1; i < values.Count; i++) if (Math.Abs(values[i] - value) < Math.Abs(values[best] - value)) best = i;
+        return best;
+    }
+    public static readonly IReadOnlyList<int> QuarterHours = Enumerable.Range(0, 96).Select(i => i * 15).ToList();
+}
 public record WindowHours(int Start, int End) {
     public bool Valid => Start >= 0 && Start < 1440 && End >= 0 && End < 1440 && Start != End;
     public bool Contains(int minute) => Valid && (Start < End ? minute >= Start && minute < End : minute >= Start || minute < End);
@@ -19,14 +61,16 @@ public sealed class Settings {
     public int WorkoutEnd { get; set; } = 1080;
     public Dictionary<Kind, bool> Enabled { get; set; } = new() { [Kind.Rally] = true, [Kind.Blink] = true, [Kind.Mochi] = true };
     public Dictionary<Kind, int> Minutes { get; set; } = new() { [Kind.Rally] = 60, [Kind.Blink] = 20, [Kind.Mochi] = 45 };
+    public Dictionary<Kind, SoundSet> SoundSets { get; set; } = Enum.GetValues<Kind>().ToDictionary(k => k, Sounds.Default);
     public Dictionary<Kind, DateTimeOffset> Last { get; set; } = new();
     public string LastWorkoutSlot { get; set; } = "";
     public WindowHours Hours => new(WorkoutStart, WorkoutEnd);
     public void Normalize() {
         var fallback = new Settings();
-        Enabled ??= new(); Minutes ??= new(); Last ??= new();
+        Enabled ??= new(); Minutes ??= new(); Last ??= new(); SoundSets ??= new();
         foreach (var kind in Enum.GetValues<Kind>()) {
             Enabled.TryAdd(kind, true);
+            if (!SoundSets.TryGetValue(kind, out var set) || !Enum.IsDefined(set)) SoundSets[kind] = Sounds.Default(kind);
             if (!Minutes.TryGetValue(kind, out int value) || !Choices(kind).Contains(value)) Minutes[kind] = fallback.Minutes[kind];
         }
         if (!Hours.Valid) { WorkoutStart = 840; WorkoutEnd = 1080; }
