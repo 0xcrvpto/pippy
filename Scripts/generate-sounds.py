@@ -38,7 +38,7 @@ def save(name, data):
     print(f'{name}: {len(data)/rate:.2f}s, peak {max(map(abs,data)):.3f}')
 
 # Start, halfway, and complete cues per set. "Blink" is the original Soft Bells set,
-# kept under its existing names because the Windows build embeds them.
+# kept under its existing names so saved settings and older builds still match.
 sets = {
     'Blink': [
         cue([(0, 659.25, .7, .20)], .8),
