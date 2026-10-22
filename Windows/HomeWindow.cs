@@ -61,12 +61,14 @@ sealed class HomeWindow : Window {
     UIElement Header() {
         var grid = new Grid { Margin = new Thickness(0,0,0,18) };
         grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var left = new StackPanel { Orientation = Orientation.Horizontal };
+        // A grid (not a horizontal stack) so the title wraps instead of running under the pills.
+        var left = new Grid { Margin = new Thickness(0,0,12,0) };
+        left.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); left.ColumnDefinitions.Add(new ColumnDefinition());
         left.Children.Add(new Image { Source = Visuals.Bitmap("AppIcon.png"), Width = 44, Height = 44, Margin = new Thickness(0,0,12,0), VerticalAlignment = VerticalAlignment.Top });
         var titles = new StackPanel();
-        var title = Visuals.Text("A little care, on your terms.", 24, true); title.FontWeight = FontWeights.Bold; title.Margin = new Thickness(0,0,0,2);
+        var title = Visuals.Text("A little care, on your terms.", 22, true); title.FontWeight = FontWeights.Bold; title.Margin = new Thickness(0,0,0,2);
         titles.Children.Add(title); titles.Children.Add(Visuals.Quiet("Three tiny desk buddies. A gentler day.", 13));
-        left.Children.Add(titles); grid.Children.Add(left);
+        Grid.SetColumn(titles, 1); left.Children.Add(titles); grid.Children.Add(left);
 
         var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0,6,0,0) };
         Button? feedback = null;
