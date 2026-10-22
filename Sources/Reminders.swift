@@ -74,7 +74,15 @@ enum ReminderKind: String, CaseIterable {
         case .stretch: 15
         }
     }
+    var defaultSoundSet: SoundSet {
+        switch self {
+        case .workout: .marimba
+        case .eyes: .bells
+        case .stretch: .kalimba
+        }
+    }
     var enabledKey: String { "enabled.\(rawValue)" }
+    var soundKey: String { "sound.\(rawValue)" }
     var minutesKey: String { "minutes.\(rawValue)" }
     var lastFireKey: String { "lastFire.\(rawValue)" }
 }
@@ -122,7 +130,10 @@ final class ReminderScheduler {
         settings[kind] = next
         defaults.set(enabled, forKey: kind.enabledKey)
         defaults.set(Date(), forKey: kind.lastFireKey)
+        NotificationCenter.default.post(name: .pippySettingsChanged, object: self)
     }
+
+    var enabledCount: Int { ReminderKind.allCases.filter { value(for: $0).enabled }.count }
 
     func setMinutes(_ minutes: Int, for kind: ReminderKind) {
         var next = value(for: kind)
@@ -135,6 +146,14 @@ final class ReminderScheduler {
 
     func setSoundEnabled(_ enabled: Bool) {
         defaults.set(enabled, forKey: soundKey)
+    }
+
+    func soundSet(for kind: ReminderKind) -> SoundSet {
+        defaults.string(forKey: kind.soundKey).flatMap(SoundSet.init(rawValue:)) ?? kind.defaultSoundSet
+    }
+
+    func setSoundSet(_ set: SoundSet, for kind: ReminderKind) {
+        defaults.set(set.rawValue, forKey: kind.soundKey)
     }
 
     func preview(_ kind: ReminderKind) { deliver(kind) }
@@ -153,23 +172,24 @@ final class ReminderScheduler {
         return true
     }
 
-    func playCue(_ cue: ReminderCue) {
+    func playCue(_ cue: ReminderCue, for kind: ReminderKind) {
         guard soundEnabled else { return }
-        soundPlayer.play(cue)
+        soundPlayer.play(cue, in: soundSet(for: kind))
     }
 
-    func previewSounds() {
-        soundPlayer.preview()
+    /// Explicit previews play even when reminder sounds are muted.
+    func previewSound(for kind: ReminderKind) {
+        soundPlayer.preview(soundSet(for: kind), fullSequence: kind == .eyes)
     }
 
     deinit { timer?.invalidate() }
 
     private func deliver(_ kind: ReminderKind) {
-        if kind != .eyes && soundEnabled { playCue(.nudge) }
+        if kind != .eyes { playCue(.nudge, for: kind) }
         panelManager.show(kind, snooze: { [weak self] in
             self?.snoozedUntil[kind] = Date().addingTimeInterval(600)
         }, soundEnabled: { [weak self] in self?.soundEnabled ?? false }, playCue: { [weak self] cue in
-            self?.playCue(cue)
+            self?.playCue(cue, for: kind)
         })
     }
 

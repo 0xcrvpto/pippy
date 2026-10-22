@@ -3,12 +3,13 @@ import AppKit
  static func main() {
   let app = NSApplication.shared
   app.setActivationPolicy(.prohibited)
+  app.appearance = NSAppearance(named: .aqua)
   let suite = "PippyRender-" + UUID().uuidString
   let defaults = UserDefaults(suiteName: suite)!
   defer { defaults.removePersistentDomain(forName: suite) }
   let scheduler = ReminderScheduler(defaults: defaults, startTimer: false)
   var views: [(String, NSView)] = [
-    ("Preferences", PreferencesView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 560, height: 710))),
+    ("Preferences", PreferencesView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 560, height: 716))),
     ("Dashboard", DashboardView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 960, height: 660)))
   ]
   for kind in ReminderKind.allCases {

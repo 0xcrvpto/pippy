@@ -22,10 +22,40 @@ import AppKit
   precondition(overnight.isSlot(minute: 30, interval: 60))
   precondition(overnight.contains(minute: 119) && !overnight.contains(minute: 120))
   precondition(!overnight.contains(minute: 12*60))
-  for name in ["BlinkStart", "BlinkHalfway", "BlinkComplete", "BlinkPreview"] {
-      precondition(NSSound(contentsOf: CuePlayer.soundURL(name), byReference: false) != nil)
+  for set in SoundSet.allCases {
+   for name in [ReminderCue.start, .halfway, .complete].map({ $0.filename(in: set) }) + [set.previewFilename] {
+      precondition(NSSound(contentsOf: CuePlayer.soundURL(name), byReference: false) != nil, "missing \(name)")
+   }
   }
-  print("PASS: custom and overnight windows, exclusive end, persistence, invalid input, audio decoding")
+  precondition(ReminderCue.halfway.filename(in: .bells) == "BlinkHalfway")
+  print("PASS: custom and overnight windows, exclusive end, persistence, invalid input, audio decoding for every sound set")
+  precondition(scheduler.soundSet(for: .eyes) == .bells && scheduler.soundSet(for: .workout) == .marimba && scheduler.soundSet(for: .stretch) == .kalimba)
+  scheduler.setSoundSet(.woodblock, for: .stretch)
+  precondition(ReminderScheduler(defaults: defaults, startTimer: false).soundSet(for: .stretch) == .woodblock)
+  precondition(scheduler.soundSet(for: .eyes) == .bells)
+  print("PASS: per-buddy sound defaults, independent choice, persistence")
+  var picked: [Int] = []
+  let time = ScrollPickerChip(values: WorkoutHoursView.quarterHours, selected: 23*60+45, wraps: true, tint: Palette.coral, format: formatMinuteOfDay)
+  time.onChange = { picked.append($0) }
+  precondition(time.step(by: 1) && time.value == 0)
+  precondition(time.step(by: -2) && time.value == 23*60+30)
+  time.skip = { $0 == 23*60+45 }
+  precondition(time.step(by: 1) && time.value == 0)
+  precondition(picked == [0, 23*60+30, 0])
+  let interval = ScrollPickerChip(values: Array(stride(from: 5, through: 60, by: 5)), selected: 60, wraps: false, tint: Palette.lilac) { "\($0) min" }
+  precondition(!interval.step(by: 1) && interval.value == 60)
+  precondition(interval.step(by: -3) && interval.value == 45)
+  let prefs = PreferencesView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 560, height: 716))
+  let hours = prefs.subviews.compactMap { $0 as? WorkoutHoursView }.first!
+  hours.startChip.select(17*60); hours.endChip.select(17*60+15)
+  precondition(hours.endChip.step(by: -1) && hours.endChip.value == 16*60+45)
+  precondition(scheduler.workoutWindow == WorkoutWindow(start: 17*60, end: 16*60+45))
+  print("PASS: scroll picker wraps midnight, skips the matching time, clamps intervals, and saves workout hours")
+  let mail = Feedback.emailURL().absoluteString
+  precondition(mail.hasPrefix("mailto:0xcrvpto@webuild3.xyz?") && mail.contains("subject=Pippy%20feedback") && mail.contains("body=") && !mail.contains(" "))
+  precondition(Feedback.telegram.absoluteString == "https://t.me/i0xcrvpto")
+  precondition(Feedback.menu().items.count == 2)
+  print("PASS: feedback email link and Telegram link")
   var snoozes = 0; var dismissals = 0; var completed = 0; var cues: [ReminderCue] = []
   for kind in ReminderKind.allCases {
    let view = CompanionReminderView(kind: kind, dismiss: { dismissals += 1 }, snooze: { snoozes += 1 }, playCue: {_ in})

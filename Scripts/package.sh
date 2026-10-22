@@ -24,5 +24,5 @@ p.write_bytes(plistlib.dumps(data))
 PY
 pkgbuild --root "$staging" --component-plist .build/components.plist --identifier com.heycling.pip.installer --version "$version" --install-location / "$work_path/Pippy.pkg"
 cp "$work_path/Pippy.pkg" "dist/Pippy-$version-arm64.pkg"
-(cd dist && shasum -a 256 "Pippy-$version-arm64.pkg" > SHA256SUMS.txt)
+(cd dist && shasum -a 256 Pippy-$version-arm64.* > SHA256SUMS.txt)
 print "Installer ready: dist/Pippy-$version-arm64.pkg"
