@@ -8,9 +8,11 @@ final class DashboardView: NSView {
     private var mascotPreview: MascotDrawingView!
     private var previewName: NSTextField!
     private var previewType: NSTextField!
-    private var workoutHoursLabel: NSTextField?
+    private var workoutHoursTag: TagView?
     private var workoutIntervalLabel: NSTextField?
-    private var selectorButtons: [ReminderKind: NSButton] = [:]
+    private var statusDot: NSView!
+    private var statusLabel: NSTextField!
+    private var selectorButtons: [ReminderKind: PillButton] = [:]
 
     init(scheduler: ReminderScheduler, frame: NSRect) {
         self.scheduler = scheduler
@@ -22,6 +24,7 @@ final class DashboardView: NSView {
         buildLeftColumn()
         buildRightColumn()
         buildFooter()
+        refreshSchedule()
         NotificationCenter.default.addObserver(self, selector: #selector(refreshSchedule), name: .pippySettingsChanged, object: scheduler)
     }
 
@@ -51,36 +54,40 @@ final class DashboardView: NSView {
         let status = NSView()
         status.translatesAutoresizingMaskIntoConstraints = false
         status.wantsLayer = true
-        status.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.8).cgColor
+        status.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.85).cgColor
         status.layer?.cornerRadius = 13
-        let dot = NSView()
-        dot.translatesAutoresizingMaskIntoConstraints = false
-        dot.wantsLayer = true
-        dot.layer?.backgroundColor = Palette.green.cgColor
-        dot.layer?.cornerRadius = 3.5
-        status.addSubview(dot)
-        let ready = label("READY ON THIS MAC", size: 9, weight: .bold, color: Palette.ink.withAlphaComponent(0.72))
-        setTracking(ready, 0.7)
-        status.addSubview(ready)
+        statusDot = NSView()
+        statusDot.translatesAutoresizingMaskIntoConstraints = false
+        statusDot.wantsLayer = true
+        statusDot.layer?.cornerRadius = 3.5
+        status.addSubview(statusDot)
+        statusLabel = label("", size: 9, weight: .bold, color: Palette.ink.withAlphaComponent(0.72))
+        status.addSubview(statusLabel)
         addSubview(status)
 
-        let preferences = button("⚙  Preferences", size: 10, weight: .semibold, color: Palette.ink)
-        preferences.wantsLayer = true
-        preferences.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.8).cgColor
-        preferences.layer?.cornerRadius = 13
+        let preferences = softPill("⚙  Preferences")
         preferences.target = NSApp.delegate
         preferences.action = #selector(AppDelegate.openPreferences)
         addSubview(preferences)
+        let feedback = softPill("✉  Feedback")
+        feedback.target = self
+        feedback.action = #selector(showFeedbackMenu(_:))
+        feedback.toolTip = "Report a problem or share an idea"
+        addSubview(feedback)
         NSLayoutConstraint.activate([
             iconTile.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 30), iconTile.topAnchor.constraint(equalTo: topAnchor, constant: 23),
             pip.leadingAnchor.constraint(equalTo: iconTile.trailingAnchor, constant: 9), pip.centerYAnchor.constraint(equalTo: iconTile.centerYAnchor),
             subtitle.leadingAnchor.constraint(equalTo: pip.trailingAnchor, constant: 12), subtitle.centerYAnchor.constraint(equalTo: iconTile.centerYAnchor),
             status.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -30), status.centerYAnchor.constraint(equalTo: iconTile.centerYAnchor),
-            status.heightAnchor.constraint(equalToConstant: 27), status.widthAnchor.constraint(equalToConstant: 151),
-            preferences.trailingAnchor.constraint(equalTo: status.leadingAnchor, constant: -10), preferences.centerYAnchor.constraint(equalTo: status.centerYAnchor),
-            preferences.widthAnchor.constraint(equalToConstant: 96), preferences.heightAnchor.constraint(equalToConstant: 27),
-            dot.leadingAnchor.constraint(equalTo: status.leadingAnchor, constant: 11), dot.centerYAnchor.constraint(equalTo: status.centerYAnchor), dot.widthAnchor.constraint(equalToConstant: 7), dot.heightAnchor.constraint(equalToConstant: 7),
-            ready.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 7), ready.centerYAnchor.constraint(equalTo: status.centerYAnchor)
+            status.heightAnchor.constraint(equalToConstant: 27),
+            statusDot.leadingAnchor.constraint(equalTo: status.leadingAnchor, constant: 11), statusDot.centerYAnchor.constraint(equalTo: status.centerYAnchor),
+            statusDot.widthAnchor.constraint(equalToConstant: 7), statusDot.heightAnchor.constraint(equalToConstant: 7),
+            statusLabel.leadingAnchor.constraint(equalTo: statusDot.trailingAnchor, constant: 7), statusLabel.centerYAnchor.constraint(equalTo: status.centerYAnchor),
+            statusLabel.trailingAnchor.constraint(equalTo: status.trailingAnchor, constant: -12),
+            preferences.trailingAnchor.constraint(equalTo: status.leadingAnchor, constant: -8), preferences.centerYAnchor.constraint(equalTo: status.centerYAnchor),
+            preferences.heightAnchor.constraint(equalToConstant: 27),
+            feedback.trailingAnchor.constraint(equalTo: preferences.leadingAnchor, constant: -8), feedback.centerYAnchor.constraint(equalTo: status.centerYAnchor),
+            feedback.heightAnchor.constraint(equalToConstant: 27)
         ])
     }
 
@@ -116,6 +123,13 @@ final class DashboardView: NSView {
             rows.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -350),
             rows.topAnchor.constraint(equalTo: topAnchor, constant: 192)
         ])
+
+        let banner = FeedbackBanner()
+        addSubview(banner)
+        NSLayoutConstraint.activate([
+            banner.leadingAnchor.constraint(equalTo: rows.leadingAnchor), banner.topAnchor.constraint(equalTo: rows.bottomAnchor, constant: 14),
+            banner.widthAnchor.constraint(equalToConstant: 570), banner.heightAnchor.constraint(equalToConstant: 54)
+        ])
     }
 
     private func buildRightColumn() {
@@ -125,7 +139,7 @@ final class DashboardView: NSView {
         NSLayoutConstraint.activate([
             previewCard.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -30),
             previewCard.topAnchor.constraint(equalTo: topAnchor, constant: 82),
-            previewCard.widthAnchor.constraint(equalToConstant: 300), previewCard.heightAnchor.constraint(equalToConstant: 366)
+            previewCard.widthAnchor.constraint(equalToConstant: 300), previewCard.heightAnchor.constraint(equalToConstant: 348)
         ])
 
         let eyebrow = label("MEET YOUR BUDDY", size: 9, weight: .bold, color: Palette.muted)
@@ -142,26 +156,22 @@ final class DashboardView: NSView {
         previewCard.addSubview(previewType)
 
         for (index, kind) in ReminderKind.allCases.enumerated() {
-            let button = button(kind.mascotName, size: 10, weight: .semibold, color: Palette.ink)
+            let button = PillButton(title: kind.mascotName, size: 10, weight: .semibold, color: Palette.ink,
+                                    fill: kind.color.withAlphaComponent(0.16), hoverFill: kind.color.withAlphaComponent(0.28), radius: 8)
             button.identifier = NSUserInterfaceItemIdentifier(kind.rawValue)
             button.target = self
             button.action = #selector(selectMascot(_:))
-            button.wantsLayer = true
-            button.layer?.cornerRadius = 8
-            button.layer?.backgroundColor = kind.color.withAlphaComponent(kind == selectedKind ? 0.34 : 0.16).cgColor
             selectorButtons[kind] = button
             previewCard.addSubview(button)
             NSLayoutConstraint.activate([
                 button.leadingAnchor.constraint(equalTo: previewCard.leadingAnchor, constant: 14 + CGFloat(index) * 91),
-                button.topAnchor.constraint(equalTo: previewCard.topAnchor, constant: 278),
+                button.topAnchor.constraint(equalTo: previewCard.topAnchor, constant: 260),
                 button.widthAnchor.constraint(equalToConstant: 82), button.heightAnchor.constraint(equalToConstant: 29)
             ])
         }
+        highlightSelector()
 
-        let preview = button("▶   Preview reminder", size: 12, weight: .semibold, color: .white)
-        preview.wantsLayer = true
-        preview.layer?.backgroundColor = Palette.ink.cgColor
-        preview.layer?.cornerRadius = 11
+        let preview = inkPill("▶   Preview reminder")
         preview.target = self
         preview.action = #selector(showPreview)
         previewCard.addSubview(preview)
@@ -169,46 +179,51 @@ final class DashboardView: NSView {
         NSLayoutConstraint.activate([
             eyebrow.leadingAnchor.constraint(equalTo: previewCard.leadingAnchor, constant: 16), eyebrow.topAnchor.constraint(equalTo: previewCard.topAnchor, constant: 16),
             sparkle.trailingAnchor.constraint(equalTo: previewCard.trailingAnchor, constant: -18), sparkle.centerYAnchor.constraint(equalTo: eyebrow.centerYAnchor),
-            mascotPreview.centerXAnchor.constraint(equalTo: previewCard.centerXAnchor), mascotPreview.topAnchor.constraint(equalTo: previewCard.topAnchor, constant: 44),
-            mascotPreview.widthAnchor.constraint(equalToConstant: 148), mascotPreview.heightAnchor.constraint(equalToConstant: 148),
-            previewName.leadingAnchor.constraint(equalTo: previewCard.leadingAnchor, constant: 17), previewName.topAnchor.constraint(equalTo: previewCard.topAnchor, constant: 203),
+            mascotPreview.centerXAnchor.constraint(equalTo: previewCard.centerXAnchor), mascotPreview.topAnchor.constraint(equalTo: previewCard.topAnchor, constant: 40),
+            mascotPreview.widthAnchor.constraint(equalToConstant: 144), mascotPreview.heightAnchor.constraint(equalToConstant: 144),
+            previewName.leadingAnchor.constraint(equalTo: previewCard.leadingAnchor, constant: 17), previewName.topAnchor.constraint(equalTo: previewCard.topAnchor, constant: 194),
             previewType.leadingAnchor.constraint(equalTo: previewName.leadingAnchor), previewType.topAnchor.constraint(equalTo: previewName.bottomAnchor, constant: 4),
             preview.leadingAnchor.constraint(equalTo: previewCard.leadingAnchor, constant: 14), preview.trailingAnchor.constraint(equalTo: previewCard.trailingAnchor, constant: -14),
-            preview.topAnchor.constraint(equalTo: previewCard.topAnchor, constant: 320), preview.heightAnchor.constraint(equalToConstant: 34)
+            preview.topAnchor.constraint(equalTo: previewCard.topAnchor, constant: 300), preview.heightAnchor.constraint(equalToConstant: 34)
         ])
 
         let schedule = NSView()
         styleCard(schedule, radius: 18)
         addSubview(schedule)
         NSLayoutConstraint.activate([
-            schedule.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -30), schedule.topAnchor.constraint(equalTo: topAnchor, constant: 463),
-            schedule.widthAnchor.constraint(equalToConstant: 300), schedule.heightAnchor.constraint(equalToConstant: 139)
+            schedule.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -30), schedule.topAnchor.constraint(equalTo: previewCard.bottomAnchor, constant: 14),
+            schedule.widthAnchor.constraint(equalToConstant: 300), schedule.heightAnchor.constraint(equalToConstant: 162)
         ])
         let scheduleTitle = label("DAILY RHYTHM", size: 9, weight: .bold, color: Palette.muted)
         setTracking(scheduleTitle, 1.0)
         let clock = symbol("clock.fill", size: 12, color: Palette.coral)
         schedule.addSubview(clock); schedule.addSubview(scheduleTitle)
+
         let workoutTitle = label("Workout window", size: 12, weight: .semibold, color: Palette.ink)
-        let workoutInterval = label("Every \(scheduler.value(for: .workout).minutes) min", size: 10, weight: .regular, color: Palette.muted)
+        let workoutInterval = label("", size: 10, weight: .regular, color: Palette.muted)
         workoutIntervalLabel = workoutInterval
-        let hours = label(scheduler.workoutWindow.summary, size: 10, weight: .bold, color: Palette.ink)
-        workoutHoursLabel = hours
-        hours.alignment = .center
-        hours.wantsLayer = true
-        hours.layer?.backgroundColor = Palette.coral.withAlphaComponent(0.18).cgColor
-        hours.layer?.cornerRadius = 10
+        let hours = TagView(scheduler.workoutWindow.summary, tint: Palette.coral)
+        workoutHoursTag = hours
+        let breaksTitle = label("Eye & stretch", size: 12, weight: .semibold, color: Palette.ink)
+        let breaksDetail = label("Blink and Mochi, daily", size: 10, weight: .regular, color: Palette.muted)
+        let breaksHours = TagView(WorkoutWindow(start: 11 * 60, end: 23 * 60)!.summary, tint: Palette.lilac)
+
         let divider = NSView(); divider.translatesAutoresizingMaskIntoConstraints = false; divider.wantsLayer = true; divider.layer?.backgroundColor = Palette.line.cgColor
         let info = symbol("info.circle", size: 10, color: Palette.muted)
         let note = label("Reminders run while Pippy stays open.", size: 9, weight: .medium, color: Palette.muted)
-        for view in [workoutTitle, workoutInterval, hours, divider, info, note] { schedule.addSubview(view) }
+        for view in [workoutTitle, workoutInterval, hours, breaksTitle, breaksDetail, breaksHours, divider, info, note] { schedule.addSubview(view) }
         NSLayoutConstraint.activate([
             clock.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 16), clock.topAnchor.constraint(equalTo: schedule.topAnchor, constant: 16),
             scheduleTitle.leadingAnchor.constraint(equalTo: clock.trailingAnchor, constant: 7), scheduleTitle.centerYAnchor.constraint(equalTo: clock.centerYAnchor),
-            workoutTitle.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 16), workoutTitle.topAnchor.constraint(equalTo: schedule.topAnchor, constant: 48),
-            workoutInterval.leadingAnchor.constraint(equalTo: workoutTitle.leadingAnchor), workoutInterval.topAnchor.constraint(equalTo: workoutTitle.bottomAnchor, constant: 3),
-            hours.trailingAnchor.constraint(equalTo: schedule.trailingAnchor, constant: -15), hours.centerYAnchor.constraint(equalTo: workoutTitle.centerYAnchor), hours.widthAnchor.constraint(equalToConstant: 162), hours.heightAnchor.constraint(equalToConstant: 23),
-            divider.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 15), divider.trailingAnchor.constraint(equalTo: schedule.trailingAnchor, constant: -15), divider.topAnchor.constraint(equalTo: schedule.topAnchor, constant: 91), divider.heightAnchor.constraint(equalToConstant: 1),
-            info.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 16), info.topAnchor.constraint(equalTo: divider.bottomAnchor, constant: 13),
+            workoutTitle.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 16), workoutTitle.topAnchor.constraint(equalTo: schedule.topAnchor, constant: 42),
+            workoutInterval.leadingAnchor.constraint(equalTo: workoutTitle.leadingAnchor), workoutInterval.topAnchor.constraint(equalTo: workoutTitle.bottomAnchor, constant: 2),
+            hours.trailingAnchor.constraint(equalTo: schedule.trailingAnchor, constant: -15), hours.topAnchor.constraint(equalTo: workoutTitle.topAnchor, constant: 4),
+            breaksTitle.leadingAnchor.constraint(equalTo: workoutTitle.leadingAnchor), breaksTitle.topAnchor.constraint(equalTo: workoutInterval.bottomAnchor, constant: 12),
+            breaksDetail.leadingAnchor.constraint(equalTo: workoutTitle.leadingAnchor), breaksDetail.topAnchor.constraint(equalTo: breaksTitle.bottomAnchor, constant: 2),
+            breaksHours.trailingAnchor.constraint(equalTo: hours.trailingAnchor), breaksHours.topAnchor.constraint(equalTo: breaksTitle.topAnchor, constant: 4),
+            divider.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 15), divider.trailingAnchor.constraint(equalTo: schedule.trailingAnchor, constant: -15),
+            divider.bottomAnchor.constraint(equalTo: schedule.bottomAnchor, constant: -36), divider.heightAnchor.constraint(equalToConstant: 1),
+            info.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 16), info.topAnchor.constraint(equalTo: divider.bottomAnchor, constant: 12),
             note.leadingAnchor.constraint(equalTo: info.trailingAnchor, constant: 6), note.centerYAnchor.constraint(equalTo: info.centerYAnchor)
         ])
     }
@@ -221,7 +236,7 @@ final class DashboardView: NSView {
         addSubview(footer)
         let moon = symbol("moon.zzz.fill", size: 10, color: Palette.muted)
         let note = label("Your buddies nudge gently, then leave you to it.", size: 10, weight: .medium, color: Palette.muted)
-        let badge = label("MENU BAR", size: 9, weight: .bold, color: Palette.muted)
+        let badge = label("PIPPY \(Feedback.appVersion.uppercased())", size: 9, weight: .bold, color: Palette.muted)
         setTracking(badge, 1.0)
         for view in [moon, note, badge] { footer.addSubview(view) }
         NSLayoutConstraint.activate([
@@ -232,29 +247,73 @@ final class DashboardView: NSView {
         ])
     }
 
+    private func highlightSelector() {
+        for (kind, button) in selectorButtons {
+            button.layer?.borderWidth = kind == selectedKind ? 1.5 : 0
+            button.layer?.borderColor = kind.color.withAlphaComponent(0.85).cgColor
+        }
+    }
+
     @objc private func selectMascot(_ sender: NSButton) {
         guard let raw = sender.identifier?.rawValue, let kind = ReminderKind(rawValue: raw) else { return }
         selectedKind = kind
         mascotPreview.kind = kind
         previewName.stringValue = kind.mascotName
         previewType.stringValue = kind.title
-        for (item, button) in selectorButtons {
-            button.layer?.backgroundColor = item.color.withAlphaComponent(item == kind ? 0.34 : 0.16).cgColor
-        }
+        highlightSelector()
+    }
+
+    @objc private func showFeedbackMenu(_ sender: NSButton) {
+        Feedback.menu().popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 4), in: sender)
     }
 
     @objc private func refreshSchedule() {
-        workoutHoursLabel?.stringValue = scheduler.workoutWindow.summary
-        workoutIntervalLabel?.stringValue = "Every \(scheduler.value(for: .workout).minutes) min"
+        workoutHoursTag?.text.stringValue = scheduler.workoutWindow.summary
+        workoutIntervalLabel?.stringValue = "Rally, every \(scheduler.value(for: .workout).minutes) min"
+        let count = scheduler.enabledCount
+        statusDot.layer?.backgroundColor = (count > 0 ? Palette.green : Palette.muted).cgColor
+        statusLabel.stringValue = count == 0 ? "ALL PAUSED" : count == 1 ? "1 REMINDER ON" : "\(count) REMINDERS ON"
+        setTracking(statusLabel, 0.7)
     }
 
     @objc private func showPreview() { scheduler.preview(selectedKind) }
 }
 
+/// "Something off, or have an idea?" with direct Email and Telegram buttons.
+final class FeedbackBanner: NSView {
+    init() {
+        super.init(frame: .zero)
+        styleCard(self, radius: 16)
+        layer?.backgroundColor = NSColor.white.withAlphaComponent(0.7).cgColor
+        let icon = symbol("bubble.left.and.bubble.right.fill", size: 14, color: Palette.lilac)
+        let title = label("Something off, or have an idea?", size: 12, weight: .semibold, color: Palette.ink)
+        let detail = label("Tell me directly — every message gets read.", size: 10, weight: .regular, color: Palette.muted)
+        let email = PillButton(title: "✉  Email", size: 10, weight: .semibold, color: Palette.ink,
+                               fill: Palette.lilac.withAlphaComponent(0.18), hoverFill: Palette.lilac.withAlphaComponent(0.32))
+        email.target = FeedbackActions.shared; email.action = #selector(FeedbackActions.email)
+        email.toolTip = Feedback.email
+        let telegram = PillButton(title: "➤  Telegram", size: 10, weight: .semibold, color: Palette.ink,
+                                  fill: Palette.mint.withAlphaComponent(0.2), hoverFill: Palette.mint.withAlphaComponent(0.36))
+        telegram.target = FeedbackActions.shared; telegram.action = #selector(FeedbackActions.telegram)
+        telegram.toolTip = Feedback.telegram.absoluteString
+        for view in [icon, title, detail, email, telegram] { addSubview(view) }
+        NSLayoutConstraint.activate([
+            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16), icon.centerYAnchor.constraint(equalTo: centerYAnchor),
+            title.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 11), title.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+            detail.leadingAnchor.constraint(equalTo: title.leadingAnchor), detail.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 2),
+            telegram.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14), telegram.centerYAnchor.constraint(equalTo: centerYAnchor),
+            telegram.heightAnchor.constraint(equalToConstant: 28),
+            email.trailingAnchor.constraint(equalTo: telegram.leadingAnchor, constant: -8), email.centerYAnchor.constraint(equalTo: centerYAnchor),
+            email.heightAnchor.constraint(equalToConstant: 28)
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
 final class PreferencesView: NSView {
     private let scheduler: ReminderScheduler
-    private var soundCardView: NSView!
-    private var soundToggleButton: NSButton!
+    private(set) var soundToggle: NSSwitch!
+    private(set) var soundPickers: [ReminderKind: NSPopUpButton] = [:]
 
     init(scheduler: ReminderScheduler, frame: NSRect) {
         self.scheduler = scheduler
@@ -267,17 +326,6 @@ final class PreferencesView: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    override func layout() {
-        super.layout()
-        guard soundCardView != nil, soundToggleButton != nil else { return }
-        soundToggleButton.frame = NSRect(
-            x: soundCardView.bounds.width - 55,
-            y: (soundCardView.bounds.height - 20) / 2,
-            width: 40,
-            height: 20
-        )
-    }
-
     private func buildContents() {
         let pawTile = NSView()
         pawTile.translatesAutoresizingMaskIntoConstraints = false
@@ -288,7 +336,7 @@ final class PreferencesView: NSView {
         pawTile.addSubview(paw)
 
         let title = label("A little care, on your terms.", size: 22, weight: .bold, color: Palette.ink)
-        let subtitle = label("Choose which Pippy reminders pop up and when.", size: 11, weight: .regular, color: Palette.muted)
+        let subtitle = label("Choose which Pippy reminders pop up, when, and how they sound.", size: 11, weight: .regular, color: Palette.muted)
         let reminderHeading = label("REMINDERS", size: 9, weight: .bold, color: Palette.muted)
         setTracking(reminderHeading, 1.1)
         addSubview(pawTile); addSubview(title); addSubview(subtitle); addSubview(reminderHeading)
@@ -305,18 +353,18 @@ final class PreferencesView: NSView {
         rows.orientation = .vertical
         rows.alignment = .leading
         rows.distribution = .fillEqually
-        rows.spacing = 9
+        rows.spacing = 8
         rows.translatesAutoresizingMaskIntoConstraints = false
         for kind in ReminderKind.allCases {
             let row = ReminderRowView(kind: kind, scheduler: scheduler)
             row.widthAnchor.constraint(equalToConstant: 500).isActive = true
-            row.heightAnchor.constraint(equalToConstant: 102).isActive = true
+            row.heightAnchor.constraint(equalToConstant: 84).isActive = true
             rows.addArrangedSubview(row)
         }
         addSubview(rows)
         NSLayoutConstraint.activate([
             rows.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 30),
-            rows.topAnchor.constraint(equalTo: topAnchor, constant: 116),
+            rows.topAnchor.constraint(equalTo: topAnchor, constant: 114),
             rows.widthAnchor.constraint(equalToConstant: 500)
         ])
 
@@ -324,47 +372,110 @@ final class PreferencesView: NSView {
         addSubview(workoutHours)
         NSLayoutConstraint.activate([
             workoutHours.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 30),
-            workoutHours.topAnchor.constraint(equalTo: rows.bottomAnchor, constant: 16),
-            workoutHours.widthAnchor.constraint(equalToConstant: 500), workoutHours.heightAnchor.constraint(equalToConstant: 108)
+            workoutHours.topAnchor.constraint(equalTo: rows.bottomAnchor, constant: 12),
+            workoutHours.widthAnchor.constraint(equalToConstant: 500), workoutHours.heightAnchor.constraint(equalToConstant: 98)
         ])
-        let soundCard = NSView()
-        soundCardView = soundCard
-        styleCard(soundCard, radius: 15)
+
+        let soundCard = buildSoundCard()
         addSubview(soundCard)
-        let soundTitle = label("Gentle reminder and eye-break chimes", size: 12, weight: .semibold, color: Palette.ink)
-        let soundDetail = label("Blink chimes at 20 seconds, 10 seconds, and completion.", size: 10, weight: .regular, color: Palette.muted)
-        let soundToggle = NSButton(checkboxWithTitle: "", target: self, action: #selector(toggleSound(_:)))
-        soundToggleButton = soundToggle
-        soundToggle.translatesAutoresizingMaskIntoConstraints = true
-        soundToggle.setButtonType(.switch)
-        soundToggle.state = scheduler.soundEnabled ? .on : .off
-        soundToggle.controlSize = .small
-        soundCard.addSubview(soundTitle); soundCard.addSubview(soundDetail); soundCard.addSubview(soundToggle)
         NSLayoutConstraint.activate([
             soundCard.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 30), soundCard.topAnchor.constraint(equalTo: workoutHours.bottomAnchor, constant: 12),
-            soundCard.widthAnchor.constraint(equalToConstant: 500), soundCard.heightAnchor.constraint(equalToConstant: 82),
-            soundTitle.leadingAnchor.constraint(equalTo: soundCard.leadingAnchor, constant: 15), soundTitle.topAnchor.constraint(equalTo: soundCard.topAnchor, constant: 13),
-            soundDetail.leadingAnchor.constraint(equalTo: soundTitle.leadingAnchor), soundDetail.topAnchor.constraint(equalTo: soundTitle.bottomAnchor, constant: 3)
+            soundCard.widthAnchor.constraint(equalToConstant: 500)
         ])
 
-        let preview = button("♫  Preview Blink's sounds", size: 10, weight: .semibold, color: Palette.ink)
-        preview.target = self; preview.action = #selector(previewBlinkSounds)
-        soundCard.addSubview(preview)
-        NSLayoutConstraint.activate([
-            preview.leadingAnchor.constraint(equalTo: soundTitle.leadingAnchor),
-            preview.topAnchor.constraint(equalTo: soundDetail.bottomAnchor, constant: 7)
-        ])
         let note = label("Changes save automatically · sound previews play even when muted", size: 9, weight: .medium, color: Palette.muted)
-        addSubview(note)
+        let ask = label("Feedback?", size: 9, weight: .semibold, color: Palette.muted)
+        let email = button("Email", size: 9, weight: .bold, color: Palette.ink)
+        email.target = FeedbackActions.shared; email.action = #selector(FeedbackActions.email); email.toolTip = Feedback.email
+        let dot = label("·", size: 9, weight: .bold, color: Palette.muted)
+        let telegram = button("Telegram", size: 9, weight: .bold, color: Palette.ink)
+        telegram.target = FeedbackActions.shared; telegram.action = #selector(FeedbackActions.telegram); telegram.toolTip = Feedback.telegram.absoluteString
+        for view in [note, ask, email, dot, telegram] { addSubview(view) }
         NSLayoutConstraint.activate([
-            note.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 31), note.topAnchor.constraint(equalTo: soundCard.bottomAnchor, constant: 13)
+            note.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 31), note.topAnchor.constraint(equalTo: soundCard.bottomAnchor, constant: 13),
+            telegram.trailingAnchor.constraint(equalTo: soundCard.trailingAnchor, constant: -1), telegram.centerYAnchor.constraint(equalTo: note.centerYAnchor),
+            dot.trailingAnchor.constraint(equalTo: telegram.leadingAnchor, constant: -4), dot.centerYAnchor.constraint(equalTo: note.centerYAnchor),
+            email.trailingAnchor.constraint(equalTo: dot.leadingAnchor, constant: -4), email.centerYAnchor.constraint(equalTo: note.centerYAnchor),
+            ask.trailingAnchor.constraint(equalTo: email.leadingAnchor, constant: -5), ask.centerYAnchor.constraint(equalTo: note.centerYAnchor)
         ])
-        needsLayout = true
     }
 
-    @objc private func previewBlinkSounds() { scheduler.previewSounds() }
+    private func buildSoundCard() -> NSView {
+        let card = NSView()
+        styleCard(card, radius: 15)
+        let title = label("Reminder sounds", size: 12, weight: .semibold, color: Palette.ink)
+        let detail = label("Give each buddy its own sound. Blink chimes at 20 s, 10 s, and when done.", size: 10, weight: .regular, color: Palette.muted)
+        soundToggle = NSSwitch()
+        soundToggle.translatesAutoresizingMaskIntoConstraints = false
+        soundToggle.controlSize = .small
+        soundToggle.state = scheduler.soundEnabled ? .on : .off
+        soundToggle.target = self
+        soundToggle.action = #selector(toggleSound(_:))
+        soundToggle.setAccessibilityLabel("Reminder sounds")
+        for view in [title, detail, soundToggle!] { card.addSubview(view) }
+        NSLayoutConstraint.activate([
+            title.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 15), title.topAnchor.constraint(equalTo: card.topAnchor, constant: 13),
+            detail.leadingAnchor.constraint(equalTo: title.leadingAnchor), detail.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 3),
+            soundToggle.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -15), soundToggle.centerYAnchor.constraint(equalTo: title.centerYAnchor, constant: 6)
+        ])
 
-    @objc private func toggleSound(_ sender: NSButton) {
+        var previous: NSView = detail
+        for kind in ReminderKind.allCases {
+            let row = NSView()
+            row.translatesAutoresizingMaskIntoConstraints = false
+            let mascot = MascotDrawingView(kind: kind, frame: .zero)
+            let name = label(kind.mascotName, size: 11, weight: .semibold, color: Palette.ink)
+            let use = label(kind == .eyes ? "Break chimes" : "Nudge sound", size: 10, weight: .regular, color: Palette.muted)
+            let picker = NSPopUpButton(frame: .zero, pullsDown: false)
+            picker.translatesAutoresizingMaskIntoConstraints = false
+            picker.controlSize = .small
+            picker.font = .systemFont(ofSize: 11)
+            picker.addItems(withTitles: SoundSet.allCases.map(\.title))
+            picker.selectItem(at: SoundSet.allCases.firstIndex(of: scheduler.soundSet(for: kind)) ?? 0)
+            picker.identifier = NSUserInterfaceItemIdentifier(kind.rawValue)
+            picker.target = self
+            picker.action = #selector(chooseSound(_:))
+            picker.setAccessibilityLabel("\(kind.mascotName) sound")
+            soundPickers[kind] = picker
+            let play = PillButton(title: "▶  Preview", size: 10, weight: .semibold, color: Palette.ink,
+                                  fill: kind.color.withAlphaComponent(0.16), hoverFill: kind.color.withAlphaComponent(0.3))
+            play.identifier = NSUserInterfaceItemIdentifier(kind.rawValue)
+            play.target = self
+            play.action = #selector(previewSound(_:))
+            play.setAccessibilityLabel("Preview \(kind.mascotName)'s sound")
+            for view in [mascot, name, use, picker, play] { row.addSubview(view) }
+            card.addSubview(row)
+            NSLayoutConstraint.activate([
+                row.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12), row.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -15),
+                row.topAnchor.constraint(equalTo: previous.bottomAnchor, constant: previous === detail ? 10 : 4), row.heightAnchor.constraint(equalToConstant: 30),
+                mascot.leadingAnchor.constraint(equalTo: row.leadingAnchor), mascot.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                mascot.widthAnchor.constraint(equalToConstant: 28), mascot.heightAnchor.constraint(equalToConstant: 28),
+                name.leadingAnchor.constraint(equalTo: mascot.trailingAnchor, constant: 8), name.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                use.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 96), use.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                play.trailingAnchor.constraint(equalTo: row.trailingAnchor), play.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                play.heightAnchor.constraint(equalToConstant: 24), play.widthAnchor.constraint(equalToConstant: 86),
+                picker.trailingAnchor.constraint(equalTo: play.leadingAnchor, constant: -10), picker.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                picker.widthAnchor.constraint(equalToConstant: 132)
+            ])
+            previous = row
+        }
+        card.bottomAnchor.constraint(equalTo: previous.bottomAnchor, constant: 10).isActive = true
+        return card
+    }
+
+    @objc private func chooseSound(_ sender: NSPopUpButton) {
+        guard let raw = sender.identifier?.rawValue, let kind = ReminderKind(rawValue: raw),
+              SoundSet.allCases.indices.contains(sender.indexOfSelectedItem) else { return }
+        scheduler.setSoundSet(SoundSet.allCases[sender.indexOfSelectedItem], for: kind)
+        scheduler.previewSound(for: kind)
+    }
+
+    @objc private func previewSound(_ sender: NSButton) {
+        guard let raw = sender.identifier?.rawValue, let kind = ReminderKind(rawValue: raw) else { return }
+        scheduler.previewSound(for: kind)
+    }
+
+    @objc private func toggleSound(_ sender: NSSwitch) {
         scheduler.setSoundEnabled(sender.state == .on)
     }
 }
@@ -372,9 +483,9 @@ final class PreferencesView: NSView {
 final class ReminderRowView: NSView {
     private let kind: ReminderKind
     private let scheduler: ReminderScheduler
-    private let intervalLabel: NSTextField
-    private let stepper: NSStepper
-    private let toggle: NSButton
+    private let every: NSTextField
+    private(set) var intervalChip: ScrollPickerChip
+    private(set) var toggle: NSSwitch
     private var mascotTile: NSView!
     private var mascot: MascotDrawingView!
     private var name: NSTextField!
@@ -386,9 +497,10 @@ final class ReminderRowView: NSView {
     init(kind: ReminderKind, scheduler: ReminderScheduler) {
         self.kind = kind
         self.scheduler = scheduler
-        intervalLabel = label("Every \(scheduler.value(for: kind).minutes) min", size: 10, weight: .medium, color: Palette.muted)
-        stepper = NSStepper()
-        toggle = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+        every = label("Every", size: 10, weight: .medium, color: Palette.muted)
+        intervalChip = ScrollPickerChip(values: Array(stride(from: kind.range.lowerBound, through: kind.range.upperBound, by: kind.step)),
+                                        selected: scheduler.value(for: kind).minutes, wraps: false, tint: kind.color) { "\($0) min" }
+        toggle = NSSwitch()
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         wantsLayer = true
@@ -411,31 +523,31 @@ final class ReminderRowView: NSView {
         category = label(kind.title.uppercased(), size: 8, weight: .bold, color: Palette.muted)
         setTracking(category, 0.6)
         tagline = label(kind.tagline, size: 10, weight: .regular, color: Palette.muted)
-        name.translatesAutoresizingMaskIntoConstraints = true
-        category.translatesAutoresizingMaskIntoConstraints = true
-        tagline.translatesAutoresizingMaskIntoConstraints = true
-        intervalLabel.translatesAutoresizingMaskIntoConstraints = true
-        addSubview(name); addSubview(category); addSubview(tagline); addSubview(intervalLabel)
+        for view in [name!, category!, tagline!, every] {
+            view.translatesAutoresizingMaskIntoConstraints = true
+            addSubview(view)
+        }
 
-        stepper.minValue = Double(kind.range.lowerBound)
-        stepper.maxValue = Double(kind.range.upperBound)
-        stepper.increment = Double(kind.step)
-        stepper.integerValue = scheduler.value(for: kind).minutes
-        stepper.target = self
-        stepper.action = #selector(changeInterval(_:))
-        stepper.controlSize = .small
-        stepper.translatesAutoresizingMaskIntoConstraints = true
-        addSubview(stepper)
+        intervalChip.translatesAutoresizingMaskIntoConstraints = true
+        intervalChip.setAccessibilityLabel("\(kind.title) interval")
+        intervalChip.toolTip = "Scroll, drag, or click to change"
+        intervalChip.onChange = { [weak self] minutes in
+            guard let self else { return }
+            self.scheduler.setMinutes(minutes, for: self.kind)
+        }
+        addSubview(intervalChip)
 
-        toggle.setButtonType(.switch)
         toggle.state = scheduler.value(for: kind).enabled ? .on : .off
         toggle.target = self
         toggle.action = #selector(toggleReminder(_:))
-        toggle.title = ""
         toggle.controlSize = .small
-        toggle.toolTip = "Enable or disable \(kind.title) reminders"
+        toggle.toolTip = "Turn \(kind.title.lowercased()) reminders on or off"
+        toggle.setAccessibilityLabel("\(kind.title) reminders")
         toggle.translatesAutoresizingMaskIntoConstraints = true
         addSubview(toggle)
+        applyEnabledLook()
+        // The dashboard and preferences each show these rows; keep both in sync.
+        NotificationCenter.default.addObserver(self, selector: #selector(syncFromSettings), name: .pippySettingsChanged, object: scheduler)
         needsLayout = true
     }
 
@@ -443,27 +555,41 @@ final class ReminderRowView: NSView {
 
     override func layout() {
         super.layout()
-        mascotTile.frame = NSRect(x: 12, y: max(0, (bounds.height - 62) / 2), width: 62, height: 62)
-        mascot.frame = NSRect(x: 2, y: 2, width: 58, height: 58)
+        let compact = bounds.height < 95
+        let tileSize: CGFloat = compact ? 56 : 62
+        mascotTile.frame = NSRect(x: 12, y: max(0, (bounds.height - tileSize) / 2), width: tileSize, height: tileSize)
+        mascot.frame = mascotTile.bounds.insetBy(dx: 2, dy: 2)
 
+        let textX = tileSize + 25
         name.sizeToFit()
-        name.frame.origin = NSPoint(x: 87, y: 14)
+        name.frame.origin = NSPoint(x: textX, y: compact ? 9 : 14)
         category.sizeToFit()
-        category.frame.origin = NSPoint(x: name.frame.maxX + 8, y: 18)
+        category.frame.origin = NSPoint(x: name.frame.maxX + 8, y: name.frame.minY + 4)
         tagline.sizeToFit()
-        tagline.frame.origin = NSPoint(x: 87, y: 40)
-        intervalLabel.sizeToFit()
-        intervalLabel.frame.origin = NSPoint(x: 87, y: 67)
-        stepper.frame = NSRect(x: intervalLabel.frame.maxX + 6, y: 63, width: 19, height: 27)
-        toggle.frame = NSRect(x: bounds.width - 14 - 40, y: (bounds.height - 20) / 2, width: 40, height: 20)
+        tagline.frame.origin = NSPoint(x: textX, y: compact ? 31 : 38)
+        let chipSize = intervalChip.intrinsicContentSize
+        let chipY: CGFloat = compact ? 50 : 62
+        every.sizeToFit()
+        every.frame.origin = NSPoint(x: textX, y: chipY + (chipSize.height - every.frame.height) / 2)
+        intervalChip.frame = NSRect(x: every.frame.maxX + 6, y: chipY, width: chipSize.width, height: chipSize.height)
+        let switchSize = toggle.intrinsicContentSize
+        toggle.frame = NSRect(x: bounds.width - 16 - switchSize.width, y: (bounds.height - switchSize.height) / 2, width: switchSize.width, height: switchSize.height)
     }
 
-    @objc private func changeInterval(_ sender: NSStepper) {
-        scheduler.setMinutes(sender.integerValue, for: kind)
-        intervalLabel.stringValue = "Every \(sender.integerValue) min"
+    private func applyEnabledLook() {
+        let alpha: CGFloat = toggle.state == .on ? 1 : 0.45
+        for view in [mascotTile!, name!, category!, tagline!, every, intervalChip] { view.alphaValue = alpha }
     }
 
-    @objc private func toggleReminder(_ sender: NSButton) {
+    @objc private func syncFromSettings() {
+        let settings = scheduler.value(for: kind)
+        toggle.state = settings.enabled ? .on : .off
+        if intervalChip.value != settings.minutes { intervalChip.select(settings.minutes) }
+        applyEnabledLook()
+    }
+
+    @objc private func toggleReminder(_ sender: NSSwitch) {
         scheduler.setEnabled(sender.state == .on, for: kind)
+        applyEnabledLook()
     }
 }

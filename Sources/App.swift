@@ -21,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        // Pippy's palette is light-only; keep system controls (switches, menus) matching it in Dark Mode.
+        NSApp.appearance = NSAppearance(named: .aqua)
         if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
            let icon = NSImage(contentsOf: iconURL) {
             NSApp.applicationIconImage = icon
@@ -64,8 +66,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(entry)
         }
         menu.addItem(.separator())
+        let feedback = NSMenuItem(title: "Send Feedback", action: nil, keyEquivalent: "")
+        feedback.submenu = Feedback.menu()
+        menu.addItem(feedback)
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Pippy", action: #selector(quitPippy), keyEquivalent: "q"))
-        for menuItem in menu.items { menuItem.target = self }
+        for menuItem in menu.items where menuItem.submenu == nil { menuItem.target = self }
         item.menu = menu
         statusItem = item
     }
@@ -80,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             preferencesWindow.makeKeyAndOrderFront(nil)
         } else if let scheduler {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 560, height: 710),
+                contentRect: NSRect(x: 0, y: 0, width: 560, height: 716),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false
@@ -90,7 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.titlebarAppearsTransparent = true
             window.isMovableByWindowBackground = true
             window.backgroundColor = Palette.canvas
-            window.contentView = PreferencesView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 560, height: 710))
+            window.contentView = PreferencesView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 560, height: 716))
             window.center()
             preferencesWindow = window
             window.makeKeyAndOrderFront(nil)

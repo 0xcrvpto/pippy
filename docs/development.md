@@ -13,10 +13,11 @@ From the project root on macOS with Apple command-line developer tools:
 ```sh
 ./Scripts/check.sh
 ./Scripts/preview.sh
+./Scripts/package-dmg.sh
 ./Scripts/package.sh
 ```
 
-The check covers custom and overnight workout windows, invalid inputs, persistence, audio decoding, a full eye-break countdown, cue order, and snooze actions. The preview renders each card. Packaging compiles for Apple silicon, generates the icon with Apple's iconutil, ad-hoc signs and verifies the app, and builds an installer targeting `/Applications/Pippy.app`.
+The check covers custom and overnight workout windows, invalid inputs, persistence, audio decoding for every sound set, per-buddy sound choices, the scroll picker (stepping, midnight wrap, skipping a matching start/end, interval clamping), the feedback links, a full eye-break countdown, cue order, and snooze actions. The preview renders each card. `package-dmg.sh` builds the app and a drag-to-Applications disk image: the app, an `Applications` link, a rendered background (`Scripts/dmg-background.swift`), and a volume icon, laid out by a Finder AppleScript. The first run asks to let your terminal control Finder; if that is denied the DMG still works with a plain window. `package.sh` builds the alternative installer package: it compiles for Apple silicon, generates the icon with Apple's iconutil, ad-hoc signs and verifies the app, and builds an installer targeting `/Applications/Pippy.app`.
 
 The installer disables bundle relocation so it does not overwrite a Desktop development copy. It has no install scripts and does not launch the app or change login items. Outputs include a SHA-256 checksum.
 
@@ -24,7 +25,7 @@ Ad-hoc signing is not Developer ID signing. Public friction-free distribution re
 
 Mascot animations transform complete artwork, not independently rigged facial features. Snoozes are in-memory. Workout hours are configurable and saved locally; eye and stretch hours remain fixed.
 
-Audio assets in `Assets/Sounds/` are original synthesized WAV files. Regenerate them with `python3 Scripts/generate-sounds.py`. Explicit sound previews play even when reminder sounds are muted; automatic cues respect mute.
+Audio assets in `Assets/Sounds/` are original synthesized WAV files in five sets (`Blink*` is Soft Bells, plus `Marimba*`, `Chimes*`, `Kalimba*`, `Woodblock*`), each with start, halfway, complete, and preview cues. Regenerate them with `python3 Scripts/generate-sounds.py`; the `Blink*` files are unchanged byte for byte. Each buddy's set is saved under `sound.<kind>`. Explicit sound previews play even when reminder sounds are muted; automatic cues respect mute.
 
 ## Windows
 
