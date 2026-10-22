@@ -6,7 +6,7 @@ The maintained project contains:
 - `Assets/`: current app icon and three mascot images.
 - `Packaging/Info.plist`: app metadata; the existing bundle identifier preserves local settings.
 - `Scripts/`: reproducible build, icon, test, preview, and installer commands.
-- `dist/`: generated app and installer, excluded from Git.
+- `dist/`: generated installers, excluded from Git. The built app goes in `dist/app.noindex/Pippy.app`; the `.noindex` suffix keeps Spotlight from listing development builds as extra copies of Pippy.
 
 From the project root on macOS with Apple command-line developer tools:
 
@@ -25,7 +25,7 @@ Ad-hoc signing is not Developer ID signing. Public friction-free distribution re
 
 The update check (`Sources/Updates.swift`, `Updates` in `Windows/Model.cs`) reads `releases/latest` from the GitHub API, ignores drafts and pre-releases, compares versions numerically, and links to the release asset ending in `-arm64.dmg` or `-Windows-x64-Setup.exe` (falling back to the release page). Releases must therefore be published as regular, non-pre-release GitHub releases with those asset names.
 
-Mascot animations transform complete artwork, not independently rigged facial features. Snoozes are in-memory. Workout hours are configurable and saved locally; eye and stretch hours remain fixed.
+Mascot animations transform complete artwork, not independently rigged facial features. Snoozes are in-memory. Each buddy has its own active hours, saved locally (`hours.<kind>.start/end` on Mac, with Rally keeping `workout.startMinute/endMinute`; `ActiveStart/ActiveEnd` plus `WorkoutStart/WorkoutEnd` on Windows).
 
 Audio assets in `Assets/Sounds/` are original synthesized WAV files in five sets (`Blink*` is Soft Bells, plus `Marimba*`, `Chimes*`, `Kalimba*`, `Woodblock*`), each with start, halfway, complete, and preview cues. Regenerate them with `python3 Scripts/generate-sounds.py`; the `Blink*` files are unchanged byte for byte. Each buddy's set is saved under `sound.<kind>`. Explicit sound previews play even when reminder sounds are muted; automatic cues respect mute.
 
@@ -42,4 +42,4 @@ dotnet publish Windows/Pippy.csproj -c Release -r win-x64 --self-contained true 
 & "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe" Windows/installer.iss
 ```
 
-The Windows GitHub Actions workflow builds the app, tests scheduling and persistence, decodes embedded assets, runs the actual 20-second countdown, renders the UI, and silently installs, tests, and uninstalls the package. It uploads the installer, checksum, and rendered previews as run artifacts. Manual dispatch can attach the installer to an existing release tag. The installer is not Authenticode signed.
+The Windows GitHub Actions workflow builds the app, tests scheduling and persistence, decodes embedded assets, runs the actual 20-second countdown, renders the UI, and silently installs, tests, and uninstalls the package. It also zips the published app as a portable build and runs its self-test. It uploads the installer, portable ZIP, checksums, and rendered previews as run artifacts. Manual dispatch can attach the installer and portable ZIP to an existing release tag (including a draft). The installer is not Authenticode signed.

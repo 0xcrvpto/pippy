@@ -81,6 +81,12 @@ enum ReminderKind: String, CaseIterable {
         case .stretch: .kalimba
         }
     }
+    /// Hours each buddy may nudge; Rally's keeps its original storage keys.
+    var defaultHours: WorkoutWindow {
+        self == .workout ? .standard : WorkoutWindow(start: 11 * 60, end: 23 * 60)!
+    }
+    var hoursStartKey: String { self == .workout ? "workout.startMinute" : "hours.\(rawValue).start" }
+    var hoursEndKey: String { self == .workout ? "workout.endMinute" : "hours.\(rawValue).end" }
     var enabledKey: String { "enabled.\(rawValue)" }
     var soundKey: String { "sound.\(rawValue)" }
     var minutesKey: String { "minutes.\(rawValue)" }
@@ -158,19 +164,25 @@ final class ReminderScheduler {
 
     func preview(_ kind: ReminderKind) { deliver(kind) }
 
-    var workoutWindow: WorkoutWindow {
-        WorkoutWindow(start: defaults.object(forKey: "workout.startMinute") as? Int ?? 840,
-                      end: defaults.object(forKey: "workout.endMinute") as? Int ?? 1080) ?? .standard
+    func activeHours(for kind: ReminderKind) -> WorkoutWindow {
+        guard let start = defaults.object(forKey: kind.hoursStartKey) as? Int,
+              let end = defaults.object(forKey: kind.hoursEndKey) as? Int else { return kind.defaultHours }
+        return WorkoutWindow(start: start, end: end) ?? kind.defaultHours
     }
 
     @discardableResult
-    func setWorkoutWindow(start: Int, end: Int) -> Bool {
+    func setActiveHours(start: Int, end: Int, for kind: ReminderKind) -> Bool {
         guard let window = WorkoutWindow(start: start, end: end) else { return false }
-        defaults.set(window.start, forKey: "workout.startMinute")
-        defaults.set(window.end, forKey: "workout.endMinute")
+        defaults.set(window.start, forKey: kind.hoursStartKey)
+        defaults.set(window.end, forKey: kind.hoursEndKey)
         NotificationCenter.default.post(name: .pippySettingsChanged, object: self)
         return true
     }
+
+    var workoutWindow: WorkoutWindow { activeHours(for: .workout) }
+
+    @discardableResult
+    func setWorkoutWindow(start: Int, end: Int) -> Bool { setActiveHours(start: start, end: end, for: .workout) }
 
     func playCue(_ cue: ReminderCue, for kind: ReminderKind) {
         guard soundEnabled else { return }
@@ -204,7 +216,7 @@ final class ReminderScheduler {
                 deliver(kind)
                 return
             }
-            if kind != .workout, !isReminderDaytime(now) { continue }
+            if kind != .workout, !activeHours(for: kind).contains(minute: minuteOfDay(now)) { continue }
             if kind == .workout {
                 guard workoutSlotIsDue(now: now, interval: config.minutes) else { continue }
                 deliver(kind)
@@ -218,9 +230,9 @@ final class ReminderScheduler {
         }
     }
 
-    private func isReminderDaytime(_ date: Date) -> Bool {
-        let hour = Calendar.current.component(.hour, from: date)
-        return hour >= 11 && hour < 23
+    private func minuteOfDay(_ date: Date) -> Int {
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
     }
 
     private func workoutSlotIsDue(now: Date, interval: Int) -> Bool {

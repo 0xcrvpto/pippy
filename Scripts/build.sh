@@ -18,8 +18,10 @@ xattr -cr "$app_path"
 # Ad-hoc signing seals the bundle but is not Developer ID signing or notarization.
 codesign --force --sign - "$app_path"
 codesign --verify --strict "$app_path"
-mkdir -p dist
-# Replace only this script's generated app output.
-if [[ -d dist/Pippy.app ]]; then /bin/rm -rf dist/Pippy.app; fi
-ditto --norsrc --noextattr "$app_path" dist/Pippy.app
-print 'Built dist/Pippy.app'
+# Spotlight skips folders ending in .noindex, so dev builds don't show up as extra apps.
+app_dir=dist/app.noindex
+mkdir -p "$app_dir"
+# Replace only this script's generated app output (and the pre-.noindex location).
+for old in "$app_dir/Pippy.app" dist/Pippy.app; do if [[ -d "$old" ]]; then /bin/rm -rf "$old"; fi; done
+ditto --norsrc --noextattr "$app_path" "$app_dir/Pippy.app"
+print "Built $app_dir/Pippy.app"

@@ -9,7 +9,7 @@ import AppKit
   defer { defaults.removePersistentDomain(forName: suite) }
   let scheduler = ReminderScheduler(defaults: defaults, startTimer: false)
   var views: [(String, NSView)] = [
-    ("Preferences", PreferencesView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 560, height: 716))),
+    ("Preferences", PreferencesView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 560, height: 780))),
     ("Dashboard", DashboardView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 960, height: 660)))
   ]
   let withUpdate = DashboardView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 960, height: 660))

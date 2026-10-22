@@ -35,7 +35,7 @@ import AppKit
   precondition(scheduler.soundSet(for: .eyes) == .bells)
   print("PASS: per-buddy sound defaults, independent choice, persistence")
   var picked: [Int] = []
-  let time = ScrollPickerChip(values: WorkoutHoursView.quarterHours, selected: 23*60+45, wraps: true, tint: Palette.coral, format: formatMinuteOfDay)
+  let time = ScrollPickerChip(values: ActiveHoursView.quarterHours, selected: 23*60+45, wraps: true, tint: Palette.coral, format: formatMinuteOfDay)
   time.onChange = { picked.append($0) }
   precondition(time.step(by: 1) && time.value == 0)
   precondition(time.step(by: -2) && time.value == 23*60+30)
@@ -45,12 +45,20 @@ import AppKit
   let interval = ScrollPickerChip(values: Array(stride(from: 5, through: 60, by: 5)), selected: 60, wraps: false, tint: Palette.lilac) { "\($0) min" }
   precondition(!interval.step(by: 1) && interval.value == 60)
   precondition(interval.step(by: -3) && interval.value == 45)
-  let prefs = PreferencesView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 560, height: 716))
-  let hours = prefs.subviews.compactMap { $0 as? WorkoutHoursView }.first!
-  hours.startChip.select(17*60); hours.endChip.select(17*60+15)
-  precondition(hours.endChip.step(by: -1) && hours.endChip.value == 16*60+45)
+  let prefs = PreferencesView(scheduler: scheduler, frame: NSRect(x: 0, y: 0, width: 560, height: 780))
+  let hours = prefs.subviews.compactMap { $0 as? ActiveHoursView }.first!
+  let rally = hours.chips[.workout]!
+  rally.start.select(17*60); rally.end.select(17*60+15)
+  precondition(rally.end.step(by: -1) && rally.end.value == 16*60+45)
   precondition(scheduler.workoutWindow == WorkoutWindow(start: 17*60, end: 16*60+45))
-  print("PASS: scroll picker wraps midnight, skips the matching time, clamps intervals, and saves workout hours")
+  // Blink and Mochi default to 11 AM–11 PM, change independently, and persist.
+  precondition(scheduler.activeHours(for: .eyes) == WorkoutWindow(start: 660, end: 1380) && scheduler.activeHours(for: .stretch) == WorkoutWindow(start: 660, end: 1380))
+  precondition(hours.chips[.eyes]!.start.step(by: -8) && scheduler.activeHours(for: .eyes) == WorkoutWindow(start: 540, end: 1380))
+  precondition(scheduler.activeHours(for: .stretch) == WorkoutWindow(start: 660, end: 1380) && scheduler.workoutWindow == WorkoutWindow(start: 17*60, end: 16*60+45))
+  precondition(scheduler.setActiveHours(start: 22*60, end: 6*60, for: .stretch) && !scheduler.setActiveHours(start: 60, end: 60, for: .stretch))
+  precondition(ReminderScheduler(defaults: defaults, startTimer: false).activeHours(for: .stretch) == WorkoutWindow(start: 22*60, end: 6*60))
+  precondition(ReminderScheduler(defaults: defaults, startTimer: false).activeHours(for: .eyes).start == 540)
+  print("PASS: scroll picker wraps midnight, skips the matching time, clamps intervals; each buddy's active hours save independently and persist")
   let mail = Feedback.emailURL().absoluteString
   precondition(mail.hasPrefix("mailto:0xcrvpto@webuild3.xyz?") && mail.contains("subject=Pippy%20feedback") && mail.contains("body=") && !mail.contains(" "))
   precondition(Feedback.telegram.absoluteString == "https://t.me/i0xcrvpto")

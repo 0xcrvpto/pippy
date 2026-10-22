@@ -16,7 +16,7 @@ cleanup() {
 trap cleanup EXIT
 staging="$work_path/root"
 mkdir -p "$staging/.background"
-ditto --norsrc --noextattr dist/Pippy.app "$staging/Pippy.app"
+ditto --norsrc --noextattr dist/app.noindex/Pippy.app "$staging/Pippy.app"
 ln -s /Applications "$staging/Applications"
 cache_path="${TMPDIR:-/tmp}/pippy-swift-module-cache"
 mkdir -p .build "$cache_path"
@@ -57,11 +57,13 @@ then
 fi
 # Finder's layout pass removes a pre-staged volume icon, so add it afterwards
 # and mark the volume as having a custom icon (kHasCustomIcon in FinderInfo).
-cp dist/Pippy.app/Contents/Resources/Pippy.icns "$mount_point/.VolumeIcon.icns"
+cp dist/app.noindex/Pippy.app/Contents/Resources/Pippy.icns "$mount_point/.VolumeIcon.icns"
 xattr -wx com.apple.FinderInfo "0000000000000000040000000000000000000000000000000000000000000000" "$mount_point"
 /bin/rm -rf "$mount_point/.fseventsd"
 chmod -Rf go-w "$mount_point" || true
 sync
+# Forget the temporary mount so Spotlight and Launch Services don't list it as another Pippy.
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$mount_point/Pippy.app" 2>/dev/null || true
 hdiutil detach "$device" -quiet || { sleep 2; hdiutil detach "$device" -force -quiet; }
 device=''
 dmg="dist/Pippy-$version-arm64.dmg"

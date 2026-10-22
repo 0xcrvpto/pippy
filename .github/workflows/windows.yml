@@ -57,6 +57,20 @@ jobs:
           if ($p.ExitCode -ne 0 -or (Test-Path $installed)) { throw 'Uninstall failed' }
           $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
           "$hash  $(Split-Path $setup -Leaf)" | Set-Content dist/windows/SHA256SUMS-Windows.txt
+      - name: Build and verify portable ZIP
+        shell: pwsh
+        run: |
+          # A no-install option for PCs whose security settings block installers from running in %TEMP%.
+          $version = ([xml](Get-Content Windows/Pippy.csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          $zip = "dist/windows/Pippy-$version-Windows-x64-Portable.zip"
+          Compress-Archive -Path dist/windows/publish/* -DestinationPath $zip -Force
+          $check = "$env:RUNNER_TEMP/pippy-portable"
+          Expand-Archive $zip -DestinationPath $check -Force
+          $p = Start-Process "$check/Pippy.exe" -ArgumentList '--self-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Portable app test failed' }
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $(Split-Path $zip -Leaf)" | Add-Content dist/windows/SHA256SUMS-Windows.txt
+          Get-Content dist/windows/SHA256SUMS-Windows.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -67,11 +81,12 @@ jobs:
           name: pippy-windows-installer
           path: |
             dist/windows/*Setup.exe
+            dist/windows/*Portable.zip
             dist/windows/SHA256SUMS-Windows.txt
-      - name: Attach installer to existing release
+      - name: Attach installer and portable ZIP to existing release
         if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         shell: pwsh
-        run: gh release upload "$env:RELEASE_TAG" (Resolve-Path dist/windows/Pippy-*-Windows-x64-Setup.exe).Path dist/windows/SHA256SUMS-Windows.txt
+        run: gh release upload "$env:RELEASE_TAG" (Resolve-Path dist/windows/Pippy-*-Windows-x64-Setup.exe).Path (Resolve-Path dist/windows/Pippy-*-Windows-x64-Portable.zip).Path dist/windows/SHA256SUMS-Windows.txt --clobber

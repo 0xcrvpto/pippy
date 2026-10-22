@@ -8,8 +8,8 @@ final class DashboardView: NSView {
     private var mascotPreview: MascotDrawingView!
     private var previewName: NSTextField!
     private var previewType: NSTextField!
-    private var workoutHoursTag: TagView?
-    private var workoutIntervalLabel: NSTextField?
+    private var rhythmTags: [ReminderKind: TagView] = [:]
+    private var rhythmDetails: [ReminderKind: NSTextField] = [:]
     private var statusDot: NSView!
     private var statusLabel: NSTextField!
     private var selectorButtons: [ReminderKind: PillButton] = [:]
@@ -220,32 +220,26 @@ final class DashboardView: NSView {
         let clock = symbol("clock.fill", size: 12, color: Palette.coral)
         schedule.addSubview(clock); schedule.addSubview(scheduleTitle)
 
-        let workoutTitle = label("Workout window", size: 12, weight: .semibold, color: Palette.ink)
-        let workoutInterval = label("", size: 10, weight: .regular, color: Palette.muted)
-        workoutIntervalLabel = workoutInterval
-        let hours = TagView(scheduler.workoutWindow.summary, tint: Palette.coral)
-        workoutHoursTag = hours
-        let breaksTitle = label("Eye & stretch", size: 12, weight: .semibold, color: Palette.ink)
-        let breaksDetail = label("Blink and Mochi, daily", size: 10, weight: .regular, color: Palette.muted)
-        let breaksHours = TagView(WorkoutWindow(start: 11 * 60, end: 23 * 60)!.summary, tint: Palette.lilac)
-
-        let divider = NSView(); divider.translatesAutoresizingMaskIntoConstraints = false; divider.wantsLayer = true; divider.layer?.backgroundColor = Palette.line.cgColor
-        let info = symbol("info.circle", size: 10, color: Palette.muted)
-        let note = label("Reminders run while Pippy stays open.", size: 9, weight: .medium, color: Palette.muted)
-        for view in [workoutTitle, workoutInterval, hours, breaksTitle, breaksDetail, breaksHours, divider, info, note] { schedule.addSubview(view) }
+        // One row per buddy: what it does, how often, and its active hours.
+        var previous: NSView?
+        for kind in ReminderKind.allCases {
+            let title = label(kind == .workout ? "Workout" : kind == .eyes ? "Eye breaks" : "Stretch", size: 12, weight: .semibold, color: Palette.ink)
+            let detail = label("", size: 10, weight: .regular, color: Palette.muted)
+            let tag = TagView(scheduler.activeHours(for: kind).summary, tint: kind.color)
+            rhythmDetails[kind] = detail
+            rhythmTags[kind] = tag
+            for view in [title, detail, tag] { schedule.addSubview(view) }
+            NSLayoutConstraint.activate([
+                title.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 16),
+                title.topAnchor.constraint(equalTo: previous?.bottomAnchor ?? schedule.topAnchor, constant: previous == nil ? 40 : 9),
+                detail.leadingAnchor.constraint(equalTo: title.leadingAnchor), detail.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 1),
+                tag.trailingAnchor.constraint(equalTo: schedule.trailingAnchor, constant: -15), tag.centerYAnchor.constraint(equalTo: title.bottomAnchor)
+            ])
+            previous = detail
+        }
         NSLayoutConstraint.activate([
             clock.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 16), clock.topAnchor.constraint(equalTo: schedule.topAnchor, constant: 16),
-            scheduleTitle.leadingAnchor.constraint(equalTo: clock.trailingAnchor, constant: 7), scheduleTitle.centerYAnchor.constraint(equalTo: clock.centerYAnchor),
-            workoutTitle.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 16), workoutTitle.topAnchor.constraint(equalTo: schedule.topAnchor, constant: 42),
-            workoutInterval.leadingAnchor.constraint(equalTo: workoutTitle.leadingAnchor), workoutInterval.topAnchor.constraint(equalTo: workoutTitle.bottomAnchor, constant: 2),
-            hours.trailingAnchor.constraint(equalTo: schedule.trailingAnchor, constant: -15), hours.topAnchor.constraint(equalTo: workoutTitle.topAnchor, constant: 4),
-            breaksTitle.leadingAnchor.constraint(equalTo: workoutTitle.leadingAnchor), breaksTitle.topAnchor.constraint(equalTo: workoutInterval.bottomAnchor, constant: 12),
-            breaksDetail.leadingAnchor.constraint(equalTo: workoutTitle.leadingAnchor), breaksDetail.topAnchor.constraint(equalTo: breaksTitle.bottomAnchor, constant: 2),
-            breaksHours.trailingAnchor.constraint(equalTo: hours.trailingAnchor), breaksHours.topAnchor.constraint(equalTo: breaksTitle.topAnchor, constant: 4),
-            divider.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 15), divider.trailingAnchor.constraint(equalTo: schedule.trailingAnchor, constant: -15),
-            divider.bottomAnchor.constraint(equalTo: schedule.bottomAnchor, constant: -36), divider.heightAnchor.constraint(equalToConstant: 1),
-            info.leadingAnchor.constraint(equalTo: schedule.leadingAnchor, constant: 16), info.topAnchor.constraint(equalTo: divider.bottomAnchor, constant: 12),
-            note.leadingAnchor.constraint(equalTo: info.trailingAnchor, constant: 6), note.centerYAnchor.constraint(equalTo: info.centerYAnchor)
+            scheduleTitle.leadingAnchor.constraint(equalTo: clock.trailingAnchor, constant: 7), scheduleTitle.centerYAnchor.constraint(equalTo: clock.centerYAnchor)
         ])
     }
 
@@ -289,8 +283,11 @@ final class DashboardView: NSView {
     }
 
     @objc private func refreshSchedule() {
-        workoutHoursTag?.text.stringValue = scheduler.workoutWindow.summary
-        workoutIntervalLabel?.stringValue = "Rally, every \(scheduler.value(for: .workout).minutes) min"
+        for kind in ReminderKind.allCases {
+            let settings = scheduler.value(for: kind)
+            rhythmTags[kind]?.text.stringValue = scheduler.activeHours(for: kind).summary
+            rhythmDetails[kind]?.stringValue = settings.enabled ? "\(kind.mascotName), every \(settings.minutes) min" : "\(kind.mascotName), paused"
+        }
         let count = scheduler.enabledCount
         statusDot.layer?.backgroundColor = (count > 0 ? Palette.green : Palette.muted).cgColor
         statusLabel.stringValue = count == 0 ? "ALL PAUSED" : count == 1 ? "1 REMINDER ON" : "\(count) REMINDERS ON"
@@ -434,12 +431,12 @@ final class PreferencesView: NSView {
             rows.widthAnchor.constraint(equalToConstant: 500)
         ])
 
-        let workoutHours = WorkoutHoursView(scheduler: scheduler)
+        let workoutHours = ActiveHoursView(scheduler: scheduler)
         addSubview(workoutHours)
         NSLayoutConstraint.activate([
             workoutHours.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 30),
             workoutHours.topAnchor.constraint(equalTo: rows.bottomAnchor, constant: 12),
-            workoutHours.widthAnchor.constraint(equalToConstant: 500), workoutHours.heightAnchor.constraint(equalToConstant: 98)
+            workoutHours.widthAnchor.constraint(equalToConstant: 500), workoutHours.heightAnchor.constraint(equalToConstant: 160)
         ])
 
         let soundCard = buildSoundCard()
